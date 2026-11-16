@@ -59,7 +59,8 @@ async function config_load_datas() {
   process_stop_all();
 
   // let's start by loading configuration
-  datas = JSON.parse(await invoke("load"));
+  let txt = await invoke("load");
+  if (txt != "") datas = JSON.parse(txt);
   datas_init(); // check datas values and initialize them if needed
 
   // initialize the UI with the datas loaded
@@ -583,7 +584,7 @@ function process_launch() {
     // we launch the excel backups
     if (doc.savx) {
       // safety checks
-      if (doc.savg_dir != "" && doc.savg_freq >= 60) {
+      if (doc.savx_dir != "" && doc.savx_freq >= 60) {
         process_launch_doc(doc, "/xlsx");
         nb++;
       }
@@ -649,7 +650,7 @@ function logs_show_next(doc, tpe, delay) {
     if (datas.docs[i] == doc) {
       if (document.querySelector("#d_index").value == i) {
         let tx = doc.savg_next;
-        if (tx != "" && doc.savx_next != "") txt += "<br>";
+        if (tx != "" && doc.savx_next != "") tx += "<br>";
         if (doc.savx_next != "") tx += doc.savx_next;
         document.querySelector("#d_next").innerHTML = tx;
       }

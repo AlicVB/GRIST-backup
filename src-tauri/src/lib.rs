@@ -6,6 +6,12 @@ use std::fs;
 use std::path::Path;
 use notify_rust;
 use std::io::Write;
+use regex::Regex;
+
+fn clean_filename(filename: &str) -> String {
+    let re = Regex::new(r#"[\\/:"<>|?*]"#).unwrap();
+    re.replace_all(filename, "").to_string()
+}
 
 fn get_config_dir() -> Option<std::path::PathBuf> {
   // let's get the config dir
@@ -92,7 +98,10 @@ pub fn load_datas() -> String {
 }
 
 fn get_error(err: u16, msg: &str) -> String {
-  return format!("{{\"error\": \"{}\", \"msg\": \"{}\"}}", err, msg);
+  return serde_json::json!({
+            "error": err,
+            "msg": msg
+          }).to_string();
 }
 
 #[tauri::command]
@@ -165,14 +174,18 @@ async fn grist_get_docs(server: String, api: String) -> Result<String, String> {
                                     nbdoc += 1;
                                     // we construct a JSON object with the path, the name and the id of the document
                                     let doc_name = doc["name"].as_str().unwrap_or("??");
-                                    let doc_id = doc["id"].as_str().unwrap();
-                                    let doc_path =
-                                        format!("{}/{}/{}", org_name, wk_name, doc_name);
-                                    // And we add that to the returned value
-                                    ret += &format!(
-                                        "{{\"path\":\"{}\",\"name\":\"{}\",\"id\":\"{}\"}},",
-                                        doc_path, doc_name, doc_id
-                                    );
+                                    let doc_id = doc["id"].as_str().unwrap_or("");
+                                    if doc_id != "" {
+                                      let doc_path = format!("{}/{}/{}", org_name, wk_name, doc_name);
+                                      // And we add that to the returned value
+                                      ret += &serde_json::json!({
+                                                "path": doc_path,
+                                                "name": doc_name,
+                                                "id": doc_id
+                                                }).to_string();
+                                      ret += ",";
+                                    }
+
                                 }
                             }
                         }
@@ -247,9 +260,9 @@ async fn _grist_backup(
     write_log(&format!("I : API {}/docs/{}/download{} récupéré", server, docid, btype));
 
     // let's construct the destination path
-    let dte = Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
+    let dte = Utc::now().format("%Y-%m-%d %H-%M-%S").to_string();
     let ext = if btype == "" { "grist" } else { "xlsx" };
-    let path = path.join(format!("{}_{}.{}", docname, dte, ext));
+    let path = path.join(format!("{}_{}.{}", clean_filename(docname), dte, ext));
 
     // and write the file content into the destination file
     if let Err(_) = fs::write(&path, bres) {

@@ -9,6 +9,7 @@ dependencies = [
  "chrono",
  "dirs",
  "notify-rust",
+ "regex",
  "reqwest",
  "serde_json",
  "tauri",
