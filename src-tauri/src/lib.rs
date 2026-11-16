@@ -122,7 +122,7 @@ async fn grist_get_docs(server: String, api: String) -> Result<String, String> {
         Ok(f) => f,
         Err(_) => {
           write_log(&format!("E : API Erreur d'accès à {}/orgs", server));
-          return Err(get_error(1, &format!("Erreur d'accès à {}/orgs", server)));  // we return an empty array
+          return Err(get_error(1, &format!("Erreur d'accès à {}/orgs", server)));  // we return an error
         },
     };
     if res.status().as_u16() != 200 {
@@ -215,10 +215,11 @@ async fn _grist_backup(
     dir: String,
     btype: String,
 ) -> Result<String, String> {
+    let tpe = if btype != "/xlsx" {""} else {&btype};
     // Check dir existence and validity
     let path = Path::new(&dir);
     if !path.exists() || !path.is_dir() ||  !path.is_absolute() {
-      write_log(&format!("BACKUP Dossier \"{}\" invalide pour {} {}", dir, docname, btype));
+      write_log(&format!("BACKUP Dossier \"{}\" invalide pour {} {}", dir, docname, tpe));
       return Err(get_error(902, &format!("Le dossier de sauvegarde \"{}\" n'est pas accessible !", dir)));
     }
 
@@ -227,20 +228,20 @@ async fn _grist_backup(
 
     // Let's grab all the organisation available for the user
     let cres = client
-        .get(&format!("{}/docs/{}/download{}", server, docid, btype))
+        .get(&format!("{}/docs/{}/download{}", server, docid, tpe))
         .bearer_auth(&api)
         .send()
         .await;
     let res = match cres {
         Ok(f) => f,
         Err(_) => {
-          write_log(&format!("E : API Erreur d'accès à {}/docs/{}/download{}", server, docid, btype));
+          write_log(&format!("E : API Erreur d'accès à {}/docs/{}/download{}", server, docid, tpe));
           return Err(get_error(902, "Erreur dans l'appel de l'API"));
         }
     };
     // Check the return status
     if res.status().as_u16() != 200 {
-      write_log_status(&format!("{}/docs/{}/download{}", server, docid, btype), res.status().as_u16());
+      write_log_status(&format!("{}/docs/{}/download{}", server, docid, tpe), res.status().as_u16());
     }
     // we return a "simplidied" error message
     match res.status().as_u16() {
@@ -253,15 +254,15 @@ async fn _grist_backup(
     let bres = match res.bytes().await {
         Ok(f) => f,
         Err(_) => {
-          write_log(&format!("E : API Impossible de lire le retour de {}/docs/{}/download{}", server, docid, btype));
+          write_log(&format!("E : API Impossible de lire le retour de {}/docs/{}/download{}", server, docid, tpe));
           return Err(get_error(903, "Retour de l'API GRIST illisible"));
         }
     };
-    write_log(&format!("I : API {}/docs/{}/download{} récupéré", server, docid, btype));
+    write_log(&format!("I : API {}/docs/{}/download{} récupéré", server, docid, tpe));
 
     // let's construct the destination path
     let dte = Utc::now().format("%Y-%m-%d %H-%M-%S").to_string();
-    let ext = if btype == "" { "grist" } else { "xlsx" };
+    let ext = if tpe == "" { "grist" } else { "xlsx" };
     let path = path.join(format!("{}_{}.{}", clean_filename(docname), dte, ext));
 
     // and write the file content into the destination file
@@ -269,7 +270,7 @@ async fn _grist_backup(
       write_log(&format!("Impossible d'enregistrer le fichier {}", path.display()));
       return Err(get_error(903,&format!("Impossible d'enregistrer le fichier {}", path.display())));
     };
-    write_log(&format!("I : BACKUP sauvegarde effectuée pour {} {}", docname, btype));
+    write_log(&format!("I : BACKUP sauvegarde effectuée pour {} {}", docname, tpe));
     return Ok("".to_string());
 }
 
