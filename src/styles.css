@@ -194,8 +194,7 @@ select {
 .msg_2 {
   background-color: #d4ae2e;
 }
-.msg_3,
-.msg_hide {
+.msg_3 {
   background-color: rgb(240, 47, 86);
 }
 
