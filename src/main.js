@@ -536,7 +536,10 @@ async function config_global_save() {
   await config_load_datas();
 
   // if it was started previously, restart the process
-  if (r) process_launch();
+  if (r) {
+    clearTimeout(datas.pidt);
+    start_API();
+  }
 }
 
 function UI_notif(txt) {
