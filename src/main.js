@@ -72,6 +72,8 @@ async function config_load_datas() {
 let datas = {};
 systray();
 
+getCurrentWindow().onCloseRequested(UI_close);
+
 window.addEventListener("DOMContentLoaded", async () => {
   document.querySelector("#d_save").addEventListener("click", config_doc_save);
   document.querySelector("#d_remove").addEventListener("click", doc_remove);
@@ -283,12 +285,12 @@ async function UI_tab_select(el, save) {
   if (document.querySelector("#d_index").value == cur) return;
 
   // we want to be sure previous datas are saved if needed
-  if (save && document.querySelector("#d_index").value >= 0 && UI_btn_get_active("#d_save")) {
+  if (save && document.querySelector("#d_index").value >= 0 && UI_btn_get_active("d_save")) {
     const answer = await ask('Voulez-vous enregistrer les données avant de changer de document ?', {
       title: 'GRIST backup',
       kind: 'warning',
     });
-    if (answer) config_doc_save(null);
+    if (answer) config_doc_save();
   }
 
   // update the doc content
@@ -403,7 +405,7 @@ function doc_add() {
   UI_tab_select(tab, true);
 }
 
-async function config_doc_save(force) {
+async function config_doc_save() {
   // let's get the doc object and update it
   const i = document.querySelector("#d_index").value;
   if (i < 0 || i >= datas.docs.length) {
@@ -474,19 +476,17 @@ async function config_doc_save(force) {
   if (datas.run) {
     if (doc.savg) {
       process_launch_doc(doc, "");
-      nb++;
     }
     // we launch the excel backups
     if (doc.savx) {
       process_launch_doc(doc, "/xlsx");
-      nb++;
     }
   }
 }
 
 function UI_global_test_change() {
   let changed = (datas.server != document.querySelector("#g_server").value || datas.api != document.querySelector("#g_api").value);
-  UI_btn_set_active("#g_save", changed);
+  UI_btn_set_active("g_save", changed);
 }
 function UI_document_test_change() {
   const i = document.querySelector("#d_index").value;
@@ -502,7 +502,7 @@ function UI_document_test_change() {
                   doc.savx != document.querySelector("#d_savx").checked ||
                   doc.savx_dir != document.querySelector("#d_savx_dir").value ||
                   doc.savx_freq != document.querySelector("#d_savx_fd").value * 24*60*60 + document.querySelector("#d_savx_fh").value * 60*60 + document.querySelector("#d_savx_fm").value * 60);
-  UI_btn_set_active("#d_save", changed);
+  UI_btn_set_active("d_save", changed);
 }
 
 async function config_global_save() {
@@ -591,14 +591,14 @@ function process_launch() {
   }
   if (nb > 0) {
     // update the buttons
-    UI_btn_set_active("#g_stop", true);
-    UI_btn_set_active("#g_go", false);
+    UI_btn_set_active("g_stop", true);
+    UI_btn_set_active("g_go", false);
     document.querySelector("#g_statut").textContent = "Lancé";
     datas.run = true;
   } else {
     // update the buttons
-    UI_btn_set_active("#g_stop", false);
-    UI_btn_set_active("#g_go", true);
+    UI_btn_set_active("g_stop", false);
+    UI_btn_set_active("g_go", true);
     document.querySelector("#g_statut").textContent = "Arrêté";
     datas.run = false;
   }
@@ -748,8 +748,8 @@ function process_stop_all() {
   if (!datas.run) return; //process already stopped
   invoke("write_log", { text: "I : Process arrêtés" });
   // update the buttons
-  UI_btn_set_active("#g_stop", false);
-  UI_btn_set_active("#g_go", true);
+  UI_btn_set_active("g_stop", false);
+  UI_btn_set_active("g_go", true);
   document.querySelector("#g_statut").textContent = "Arrêté";
   datas.run = false;
   if (!isset(datas.docs)) return;
@@ -772,13 +772,13 @@ function process_stop_all() {
 
 function UI_btn_set_active(id, active) {
   if (active) {
-    document.querySelector(id).classList.remove("img_btn_disabled");
+    document.querySelector("#" + id).classList.remove("img_btn_disabled");
   } else {
-    document.querySelector(id).classList.add("img_btn_disabled");
+    document.querySelector("#" + id).classList.add("img_btn_disabled");
   }
 }
 function UI_btn_get_active(id) {
-  return !document.querySelector(id).classList.contains("img_btn_disabled");
+  return !document.querySelector("#" + id).classList.contains("img_btn_disabled");
 }
 
 async function doc_remove() {
@@ -817,4 +817,9 @@ async function UI_a_propos() {
   txt += "\n\nLicence : GPL-3.0-or-later";
   txt += "\ncopyright : A.RENAUDIN 2026";
   await message(txt, { title: 'GRIST backup', kind: 'info' });
+}
+
+async function UI_close(event) {
+  event.preventDefault();
+  await config_doc_save();
 }
