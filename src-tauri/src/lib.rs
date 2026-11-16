@@ -10,7 +10,7 @@ use regex::Regex;
 
 fn clean_filename(filename: &str) -> String {
     let re = Regex::new(r#"[\\/:"<>|?*]"#).unwrap();
-    re.replace_all(filename, "").to_string()
+    re.replace_all(filename, "_").to_string()
 }
 
 fn get_config_dir() -> Option<std::path::PathBuf> {
