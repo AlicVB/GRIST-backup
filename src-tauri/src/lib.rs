@@ -17,12 +17,12 @@ fn get_config_dir() -> Option<std::path::PathBuf> {
   // let's get the config dir
   let cfd = dirs::config_dir();
   if cfd.is_none() {
-    notify_rust::Notification::new()
+    let _ = notify_rust::Notification::new()
       .summary("GRIST backup")
       .body("Impossible de récupérer le dossier de configuration !")
       .icon("dialog-error")
       .timeout(notify_rust::Timeout::Milliseconds(6000)) //milliseconds
-      .show().unwrap();
+      .show();
     return None;
   };
   let mut path = cfd.unwrap();
@@ -30,12 +30,12 @@ fn get_config_dir() -> Option<std::path::PathBuf> {
   // we create it if needed
   if let Err(_) = fs::create_dir_all(&path) {
     write_log(&format!("E : Impossible de créer le dossier {}", path.display()));
-    notify_rust::Notification::new()
+    let _ = notify_rust::Notification::new()
       .summary("GRIST backup")
       .body(&format!("Impossible de créer le dossier de configuration {}", path.display()))
       .icon("dialog-error")
       .timeout(notify_rust::Timeout::Milliseconds(6000)) //milliseconds
-      .show().unwrap();
+      .show();
     return None;
   };
   return Some(path);
@@ -285,24 +285,24 @@ async fn grist_backup(
   let res = _grist_backup(server, api, docid, &docname, dir, btype).await;
   match &res {
   Ok(_) => {
-    notify_rust::Notification::new()
+    let _ = notify_rust::Notification::new()
       .summary("GRIST backup")
       .body(&format!("{} : Sauvegarde effectuée !", docname))
       .icon("dialog-information")
       .timeout(notify_rust::Timeout::Milliseconds(6000)) //milliseconds
-      .show().unwrap();
+      .show();
     },
   Err(r) => {
     let mut rr = "Erreur lors de la sauvegarde".to_string();
     if let Ok(rrr) = serde_json::from_str::<serde_json::Value>(r) {
       rr = rrr["msg"].as_str().unwrap_or("Erreur lors de la sauvegarde").to_string();
     }
-    notify_rust::Notification::new()
+    let _ = notify_rust::Notification::new()
       .summary("GRIST backup")
       .body(&format!("{} : {}",docname, rr))
       .icon("dialog-error")
       .timeout(notify_rust::Timeout::Milliseconds(6000)) //milliseconds
-      .show().unwrap();
+      .show();
     }
   };
 
@@ -361,12 +361,12 @@ fn write_log(text: &str) {
   };
 
   // if we are here, that means that the log as not been written
-  notify_rust::Notification::new()
+  let _ = notify_rust::Notification::new()
       .summary("GRIST backup")
       .body(&format!("Impossible d'écrire dans le fichier de log {}",path.display()))
       .icon("dialog-error")
       .timeout(notify_rust::Timeout::Milliseconds(6000)) //milliseconds
-      .show().unwrap();
+      .show();
 }
 
 fn get_text_statut(api: &str, status: u16) -> String {
