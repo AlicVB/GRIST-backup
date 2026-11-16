@@ -323,7 +323,7 @@ async fn last_backup(docname: String, dir: String, tp: String) -> u64 {
       let pp = pfn.to_str().unwrap_or("");
       let ext = if tp=="/xlsx" {".xlsx"} else {".grist"};
       // we restrict the file pattern
-      if pp.starts_with(&format!("{}_", docname)) && pp.ends_with(ext) {
+      if pp.starts_with(&format!("{}_", clean_filename(&docname))) && pp.ends_with(ext) {
         if let Ok(mm) = p.metadata() {
           if let Ok(tt) = mm.created() {
             if let Ok(ss) = tt.duration_since(std::time::UNIX_EPOCH) {
