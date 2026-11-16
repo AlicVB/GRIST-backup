@@ -65,9 +65,6 @@ async function config_load_datas() {
 
   // initialize the UI with the datas loaded
   UI_init();
-
-  // and let's load all the available docs from the API
-  docs_list_load();
 }
 
 let datas = {};
@@ -108,7 +105,7 @@ window.addEventListener("DOMContentLoaded", async () => {
   await config_load_datas();
 
   // and we launch the process
-  process_launch();
+  start_API();
 });
 
 function datas_init() {
@@ -215,29 +212,32 @@ function docs_list_apply(docs) {
   sel.addEventListener("change", doc_cb_changed);
 }
 
-async function docs_list_load() {
+async function start_API() {
   // we load the list of available documents via the GRIST API
   let server = datas.server;
   let api = datas.api;
   datas.pidt = 0;
   invoke("grist_get_docs", {server: server, api: api})
     .then((txt) => {
-      document.querySelector("#g_msg").textContent = "";
-      document.querySelector("#g_msg").className = "msg_hide";
+      datas.msg = "";
+      datas.statut = STATUT.OK;
+      datas.pidt = 0;
+      logs_update_general_msg();
       let docs = JSON.parse(txt);
       docs_list_apply(docs);
+      // we can now launch the backups
+      process_launch();
     })
     .catch((error) => {
       let err = JSON.parse(error);
       // we show the error msg
       datas.msg = err.msg;
       datas.statut = STATUT.STOPPED;
-      document.querySelector("#g_msg").textContent = err.msg;
-      document.querySelector("#g_msg").className = "msg_3";
+      logs_update_general_msg();
       // and we update the tabs and select
       docs_list_apply([]);
       // we retry in 1 minute (maybe internet is back ;))
-      datas.pidt = setTimeout(docs_list_load, 60000);
+      datas.pidt = setTimeout(start_API, 60000);
     });
 }
 
@@ -369,6 +369,16 @@ function logs_update_doc_msg(doc) {
       document.querySelector("#d_msg").className = "msg_hide";
       document.querySelector("#d_msg").textContent = "";
     }
+  }
+}
+
+function logs_update_general_msg() {
+  if (datas.msg != "" && datas.statut != STATUT.OK) {
+    document.querySelector("#g_msg").textContent = datas.msg;
+    document.querySelector("#g_msg").className = "msg_" + datas.statut;
+  } else {
+    document.querySelector("#g_msg").className = "msg_hide";
+    document.querySelector("#g_msg").textContent = "";
   }
 }
 
@@ -531,7 +541,7 @@ async function config_global_save() {
 
 function UI_notif(txt) {
   const e = document.querySelector("#notif");
-  e.textContent = txt;
+  e.innerHTML = txt;
   e.classList.add("notif_show");
 
   // we hide the notification after 5 seconds
@@ -544,8 +554,10 @@ async function UI_dir_chooser(event) {
   let e = document.querySelector("#d_savx_dir");
   if (event.currentTarget.id == "d_savg_dir_open") e = document.querySelector("#d_savg_dir");
   const dir = await open({ directory: true, defaultPath: e.value });
-  e.value = dir;
-  UI_document_test_change();
+  if (dir) {
+    e.value = dir;
+    UI_document_test_change();
+  }
 }
 
 async function backup_now(event) {
@@ -765,7 +777,7 @@ function process_stop_all() {
     if (doc.savx_pidt > 0) {
       try {clearTimeout(doc.savx_pidt)} catch {};
       doc.savx_pidt = 0;
-      doc.savx_next = 0;
+      doc.savx_next = "";
     }
     logs_show_next(doc);
   }
@@ -784,6 +796,7 @@ function UI_btn_get_active(id) {
 
 async function doc_remove() {
   let i = document.querySelector("#d_index").value;
+  if (i < 0 || i >= datas.docs.length) return;
   // we stop all the process of the doc
   let doc = datas.docs[i];
   if (doc.savg_pidt > 0) {
@@ -794,7 +807,7 @@ async function doc_remove() {
   if (doc.savx_pidt > 0) {
     try {clearTimeout(doc.savx_pidt)} catch {};
     doc.savx_pidt = 0;
-    doc.savx_next = 0;
+    doc.savx_next = "";
   }
   // we remove the doc from the datas
   datas.docs.splice(i,1);
