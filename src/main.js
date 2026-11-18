@@ -7,6 +7,7 @@ const { defaultWindowIcon, getVersion } = window.__TAURI__.app;
 const { Menu } = window.__TAURI__.menu;
 const { exit } = window.__TAURI__.process;
 const { getCurrentWindow } = window.__TAURI__.window;
+const { enable, isEnabled, disable } = window.__TAURI__.autostart;
 
 const STATUT = Object.freeze({
   OK: 0,
@@ -65,6 +66,9 @@ async function config_load_datas() {
 
   // initialize the UI with the datas loaded
   UI_init();
+
+  // check autostart statut
+  await Autostart_check();
 }
 
 let datas = {};
@@ -87,6 +91,7 @@ window.addEventListener("DOMContentLoaded", async () => {
 
   document.querySelector("#g_api").addEventListener("change", UI_global_test_change);
   document.querySelector("#g_server").addEventListener("change", UI_global_test_change);
+  document.querySelector("#g_autostart").addEventListener("change", UI_global_test_change);
 
   document.querySelector("#d_id").addEventListener("change", UI_document_test_change);
   document.querySelector("#d_name").addEventListener("change", UI_document_test_change);
@@ -113,6 +118,7 @@ function datas_init() {
   if (!isset(datas.server)) datas.server = "https://grist.numerique.gouv.fr/api";
   if (!isset(datas.api)) datas.api = "";
   if (!isset(datas.docs)) datas.docs = [];
+  if (!isset(datas.autostart)) datas.autostart = false;
   if (datas.server.slice(-1) == "/") datas.server = datas.server.slice(0,-1);
 
   // we also reset all the pids/pidt/errors
@@ -137,6 +143,7 @@ function UI_init() {
   // set the global values
   document.querySelector("#g_server").value = datas.server;
   document.querySelector("#g_api").value = datas.api;
+  document.querySelector("#g_autostart").checked = datas.autostart;
 
   // remove all the actual tabs if any
   let els = document.querySelectorAll(".tab");
@@ -496,7 +503,9 @@ async function config_doc_save() {
 }
 
 function UI_global_test_change() {
-  let changed = (datas.server != document.querySelector("#g_server").value || datas.api != document.querySelector("#g_api").value);
+  let changed = (datas.server != document.querySelector("#g_server").value ||
+                  datas.api != document.querySelector("#g_api").value ||
+                  datas.autostart != document.querySelector("#g_autostart").checked);
   UI_btn_set_active("g_save", changed);
 }
 function UI_document_test_change() {
@@ -524,6 +533,7 @@ async function config_global_save() {
   datas.server = document.querySelector("#g_server").value;
   if (datas.server.slice(-1) == "/") datas.server = datas.server.slice(0,-1);
   datas.api = document.querySelector("#g_api").value;
+  datas.autostart = document.querySelector("#g_autostart").checked;
 
   // save the value to the config file
   const txt = JSON.stringify(datas);
@@ -534,6 +544,7 @@ async function config_global_save() {
 
   // reload the datas
   await config_load_datas();
+  UI_btn_set_active("g_save", false);
 
   // if it was started previously, restart the process
   if (r) {
@@ -839,4 +850,10 @@ async function UI_a_propos() {
 async function UI_close(event) {
   event.preventDefault();
   await config_doc_save();
+}
+
+async function Autostart_check() {
+  let auto = await isEnabled();
+  if (datas.autostart && !auto) await enable();
+  else if (!datas.autostart && auto) await disable();
 }
