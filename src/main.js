@@ -586,7 +586,7 @@ async function backup_now(event) {
   let tpe="/xlsx";
   if (event.currentTarget.id == "d_savg_now") tpe = "";
 
-  backup_doc(datas.docs[i], tpe, false);
+  backup_doc(datas.docs[i], tpe, false, true);
 }
 
 function process_launch() {
@@ -644,7 +644,7 @@ async function process_launch_doc(doc, tpe) {
   if (diff < 0) diff = 0;
 
   // launch the first backup
-  let pidt = setTimeout(backup_doc, diff*1000, doc, tpe, true);
+  let pidt = setTimeout(backup_doc, diff*1000, doc, tpe, true, true);
   if (tpe == "/xlsx") doc.savx_pidt = pidt;
   else doc.savg_pidt = pidt;
   logs_show_next(doc, tpe, diff);
@@ -685,7 +685,7 @@ function logs_show_next(doc, tpe, delay) {
   }
 }
 
-async function backup_doc(doc, tpe, retry) {
+async function backup_doc(doc, tpe, retry, notif) {
   let dir = doc.savg_dir;
   if (tpe == "/xlsx") dir = doc.savx_dir;
   // let manage the return value
@@ -693,7 +693,7 @@ async function backup_doc(doc, tpe, retry) {
   if (tpe == "/xlsx") log = "EXCEL : ";
   const dt = new Date();
   log += dt.toLocaleString();
-  invoke("grist_backup", { server: datas.server, api: datas.api, docid: doc.id, docname: doc.name, dir: dir, btype: tpe })
+  invoke("grist_backup", { server: datas.server, api: datas.api, docid: doc.id, docname: doc.name, dir: dir, btype: tpe, notif: notif})
     .then((txt) => {
       // successfull backup
       UI_notif("Sauvegarde effectuée avec succès");
@@ -714,7 +714,7 @@ async function backup_doc(doc, tpe, retry) {
       logs_show_next(doc, tpe, freq);
       // if needed, we launch the next backup
       if (retry && freq > 0 && datas.run) {
-        let pidt = setTimeout(backup_doc, freq*1000, doc, tpe, retry);
+        let pidt = setTimeout(backup_doc, freq*1000, doc, tpe, retry, true);
         if (tpe == "/xlsx") doc.savx_pidt = pidt;
         else doc.savg_pidt = pidt;
       }
@@ -730,7 +730,7 @@ async function backup_doc(doc, tpe, retry) {
       freq = Math.min(freq, 60);
       if (freq == 0) freq = 60;
       if (retry) {
-        let pidt = setTimeout(backup_doc, freq*1000, doc, tpe, retry);
+        let pidt = setTimeout(backup_doc, freq*1000, doc, tpe, retry, false);
         if (tpe == "/xlsx") doc.savx_pidt = pidt;
         else doc.savg_pidt = pidt;
         logs_show_next(doc, tpe, freq);

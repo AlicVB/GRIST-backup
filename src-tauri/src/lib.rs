@@ -263,7 +263,7 @@ async fn _grist_backup(
     // instanciate the client that will be used to retrieve the JSON from GRIST API
     let client = reqwest::Client::new();
 
-    // Let's grab all the organisation available for the user
+    // call the API for download
     let cres = client
         .get(&format!("{}/docs/{}/download{}", server, docid, tpe))
         .bearer_auth(&api)
@@ -355,6 +355,7 @@ async fn grist_backup(
     docname: String,
     dir: String,
     btype: String,
+    notif: bool
 ) -> Result<String, String> {
     let res = _grist_backup(server, api, docid, &docname, dir, btype).await;
     match &res {
@@ -367,19 +368,29 @@ async fn grist_backup(
                 .show();
         }
         Err(r) => {
+          if notif {
             let mut rr = "Erreur lors de la sauvegarde".to_string();
+            let mut err = 1;
             if let Ok(rrr) = serde_json::from_str::<serde_json::Value>(r) {
                 rr = rrr["msg"]
                     .as_str()
                     .unwrap_or("Erreur lors de la sauvegarde")
                     .to_string();
+
+                err = rrr["error"]
+                    .as_i64()
+                    .unwrap_or(1);
             }
-            let _ = notify_rust::Notification::new()
+            if err != 902 {
+              // don't notify directory error : it will spam the user
+              let _ = notify_rust::Notification::new()
                 .summary("GRIST backup")
                 .body(&format!("{} : {}", docname, rr))
                 .icon("dialog-error")
                 .timeout(notify_rust::Timeout::Milliseconds(6000)) //milliseconds
                 .show();
+            }
+          }
         }
     };
 
@@ -441,17 +452,6 @@ fn write_log(text: &str) {
             return;
         };
     };
-
-    // if we are here, that means that the log as not been written
-    let _ = notify_rust::Notification::new()
-        .summary("GRIST backup")
-        .body(&format!(
-            "Impossible d'écrire dans le fichier de log {}",
-            path.display()
-        ))
-        .icon("dialog-error")
-        .timeout(notify_rust::Timeout::Milliseconds(6000)) //milliseconds
-        .show();
 }
 
 fn get_text_statut(api: &str, status: u16) -> String {
