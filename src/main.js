@@ -853,7 +853,21 @@ async function UI_close(event) {
 }
 
 async function Autostart_check() {
-  let auto = await isEnabled();
-  if (datas.autostart && !auto) await enable();
-  else if (!datas.autostart && auto) await disable();
+  try {
+    let auto = await isEnabled();
+    if (datas.autostart && !auto) await enable();
+    else if (!datas.autostart && auto) await disable();
+    document.querySelector("#g_autostart_label").textContent = "Lancer au démarrage du système";
+  } catch(error) {
+    // autostart can't be enable on this platform
+    document.querySelector("#g_autostart_label").textContent = "Lancer au démarrage du système (indisponible)";
+    document.querySelector("#g_autostart").checked = false;
+    document.querySelector("#g_autostart").disabled = true;
+    // if it's not enabled, it doesn't matter otherwise we warn the user
+    if (!datas.autostart) return;
+    datas.autostart = false;
+    config_global_save();
+    UI_notif("Impossible d'activer le démarrage automatique sur ce système");
+    await invoke("write_log", { text: "Cannot activate autostart on this system" });
+  }
 }
