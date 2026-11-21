@@ -22,8 +22,51 @@ let datas = {};
 let tray = null;
 let autostart_available = true;
 
+datas_init();
+
+getCurrentWindow().onCloseRequested(UI_close);
+
+window.addEventListener("DOMContentLoaded", async () => {
+  document.querySelector("#d_save").addEventListener("click", config_doc_save);
+  document.querySelector("#d_remove").addEventListener("click", doc_remove);
+  document.querySelector("#g_save").addEventListener("click", config_global_save);
+  document.querySelector("#a_propos").addEventListener("click", UI_a_propos);
+  document.querySelector("#tab_add").addEventListener("click", doc_add);
+  document.querySelector("#d_savg_dir_open").addEventListener("click", UI_dir_chooser);
+  document.querySelector("#d_savx_dir_open").addEventListener("click", UI_dir_chooser);
+  document.querySelector("#d_savg_now").addEventListener("click", backup_now);
+  document.querySelector("#d_savx_now").addEventListener("click", backup_now);
+  document.querySelector("#g_stop").addEventListener("click", process_stop_all);
+  document.querySelector("#g_go").addEventListener("click", process_launch);
+  document.querySelector("#lang_sel").addEventListener("change", lang_change);
+
+  document.querySelector("#g_api").addEventListener("change", UI_global_test_change);
+  document.querySelector("#g_server").addEventListener("change", UI_global_test_change);
+  document.querySelector("#g_autostart").addEventListener("change", UI_global_test_change);
+
+  document.querySelector("#d_id").addEventListener("change", UI_document_test_change);
+  document.querySelector("#d_name").addEventListener("change", UI_document_test_change);
+  document.querySelector("#d_savg").addEventListener("change", UI_document_test_change);
+  document.querySelector("#d_savg_dir").addEventListener("change", UI_document_test_change);
+  document.querySelector("#d_savg_fd").addEventListener("change", UI_document_test_change);
+  document.querySelector("#d_savg_fh").addEventListener("change", UI_document_test_change);
+  document.querySelector("#d_savg_fm").addEventListener("change", UI_document_test_change);
+  document.querySelector("#d_savx").addEventListener("change", UI_document_test_change);
+  document.querySelector("#d_savx_dir").addEventListener("change", UI_document_test_change);
+  document.querySelector("#d_savx_fd").addEventListener("change", UI_document_test_change);
+  document.querySelector("#d_savx_fh").addEventListener("change", UI_document_test_change);
+  document.querySelector("#d_savx_fm").addEventListener("change", UI_document_test_change);
+
+  // let's start by loading configuration
+  await config_load_datas();
+
+  // and we launch the process
+  start_API();
+});
+
+
 // All the stuff for the systray icon
-async function update_tray() {
+async function systray_update() {
   const menu = await Menu.new({
     items: [
       {
@@ -67,7 +110,7 @@ function isset (accessor) {
 }
 
 // return the message key of a Tauri error returned by the Rust side
-function err_key(error) {
+function logs_err_key(error) {
   try {
     return JSON.parse(error).key || "";
   } catch {
@@ -76,7 +119,7 @@ function err_key(error) {
 }
 
 // translate a Tauri error returned by the Rust side
-function err_msg(error) {
+function logs_err_msg(error) {
   try {
     const e = JSON.parse(error);
     return t(e.key || "err.unknown", e.params || {});
@@ -85,26 +128,26 @@ function err_msg(error) {
   }
 }
 
-async function notify_user(body, icon) {
+async function logs_notify_user(body, icon) {
   try {
     await invoke("notify", { summary: "GRIST backup", body: body, icon: icon });
   } catch {}
 }
 
-async function save_datas() {
+async function datas_save() {
   const txt = JSON.stringify(datas);
   try {
     await invoke("save", { datas: txt });
   } catch (error) {
-    UI_notif(err_msg(error));
+    UI_notif(logs_err_msg(error));
   }
 }
 
-function update_status_text() {
+function UI_update_status_text() {
   document.querySelector("#g_statut").textContent = t(datas.run ? "status.running" : "status.stopped");
 }
 
-function update_autostart_label() {
+function UI_update_autostart_label() {
   document.querySelector("#g_autostart_label").textContent = t(autostart_available ? "global.autostart" : "global.autostart_unavailable");
 }
 
@@ -113,10 +156,10 @@ async function lang_change() {
   datas.lang = lg;
   set_lang(lg);
   apply_i18n();
-  update_status_text();
-  update_autostart_label();
-  await update_tray();
-  await save_datas();
+  UI_update_status_text();
+  UI_update_autostart_label();
+  await systray_update();
+  await datas_save();
 }
 
 async function config_load_datas() {
@@ -128,7 +171,7 @@ async function config_load_datas() {
   try {
     txt = await invoke("load");
   } catch (error) {
-    UI_notif(err_msg(error));
+    UI_notif(logs_err_msg(error));
   }
   if (txt != "") datas = JSON.parse(txt);
   datas_init(); // check datas values and initialize them if needed
@@ -146,53 +189,11 @@ async function config_load_datas() {
   UI_init();
 
   // and the systray menu in the right language
-  await update_tray();
+  await systray_update();
 
   // check autostart statut
   await Autostart_check();
 }
-
-datas_init();
-
-getCurrentWindow().onCloseRequested(UI_close);
-
-window.addEventListener("DOMContentLoaded", async () => {
-  document.querySelector("#d_save").addEventListener("click", config_doc_save);
-  document.querySelector("#d_remove").addEventListener("click", doc_remove);
-  document.querySelector("#g_save").addEventListener("click", config_global_save);
-  document.querySelector("#a_propos").addEventListener("click", UI_a_propos);
-  document.querySelector("#tab_add").addEventListener("click", doc_add);
-  document.querySelector("#d_savg_dir_open").addEventListener("click", UI_dir_chooser);
-  document.querySelector("#d_savx_dir_open").addEventListener("click", UI_dir_chooser);
-  document.querySelector("#d_savg_now").addEventListener("click", backup_now);
-  document.querySelector("#d_savx_now").addEventListener("click", backup_now);
-  document.querySelector("#g_stop").addEventListener("click", process_stop_all);
-  document.querySelector("#g_go").addEventListener("click", process_launch);
-  document.querySelector("#lang_sel").addEventListener("change", lang_change);
-
-  document.querySelector("#g_api").addEventListener("change", UI_global_test_change);
-  document.querySelector("#g_server").addEventListener("change", UI_global_test_change);
-  document.querySelector("#g_autostart").addEventListener("change", UI_global_test_change);
-
-  document.querySelector("#d_id").addEventListener("change", UI_document_test_change);
-  document.querySelector("#d_name").addEventListener("change", UI_document_test_change);
-  document.querySelector("#d_savg").addEventListener("change", UI_document_test_change);
-  document.querySelector("#d_savg_dir").addEventListener("change", UI_document_test_change);
-  document.querySelector("#d_savg_fd").addEventListener("change", UI_document_test_change);
-  document.querySelector("#d_savg_fh").addEventListener("change", UI_document_test_change);
-  document.querySelector("#d_savg_fm").addEventListener("change", UI_document_test_change);
-  document.querySelector("#d_savx").addEventListener("change", UI_document_test_change);
-  document.querySelector("#d_savx_dir").addEventListener("change", UI_document_test_change);
-  document.querySelector("#d_savx_fd").addEventListener("change", UI_document_test_change);
-  document.querySelector("#d_savx_fh").addEventListener("change", UI_document_test_change);
-  document.querySelector("#d_savx_fm").addEventListener("change", UI_document_test_change);
-
-  // let's start by loading configuration
-  await config_load_datas();
-
-  // and we launch the process
-  start_API();
-});
 
 function datas_init() {
   if (datas == "") datas = {};
@@ -319,7 +320,7 @@ async function start_API() {
     })
     .catch((error) => {
       // we show the translated error msg
-      datas.msg = err_msg(error);
+      datas.msg = logs_err_msg(error);
       datas.statut = STATUT.STOPPED;
       logs_update_general_msg();
       // and we update the tabs and select
@@ -340,16 +341,6 @@ function doc_cb_changed(event) {
     document.querySelector("#d_name").value = "";
   }
   UI_document_test_change();
-}
-
-function doc_get_from_tab(tab) {
-  let els = document.querySelectorAll(".tab");
-  for (let i = 0; i < els.length; i++) {
-    const e = els[i];
-    if (e == tab && i<datas.docs.length) {
-      return datas.docs[i];
-    }
-  }
 }
 
 function UI_tab_select_dom(event) {
@@ -564,7 +555,7 @@ async function config_doc_save() {
   els[i].textContent = doc.name;
 
   // save the value to the config file
-  await save_datas();
+  await datas_save();
 
   // notif
   UI_notif(notif);
@@ -616,7 +607,7 @@ async function config_global_save() {
   datas.autostart = document.querySelector("#g_autostart").checked;
 
   // save the value to the config file
-  await save_datas();
+  await datas_save();
 
   // notif
   UI_notif(t("notif.saved"))
@@ -706,7 +697,7 @@ function process_launch() {
     UI_btn_set_active("g_go", true);
     datas.run = false;
   }
-  update_status_text();
+  UI_update_status_text();
 }
 
 async function process_launch_doc(doc, tpe) {
@@ -775,7 +766,7 @@ async function backup_doc(doc, tpe, retry, notif) {
     .then(async (txt) => {
       // successfull backup
       UI_notif(t("notif.saved_ok"));
-      if (notif) await notify_user(t("backup.success_notif", { name: doc.name }), "dialog-information");
+      if (notif) await logs_notify_user(t("backup.success_notif", { name: doc.name }), "dialog-information");
       doc.logs = log + " OK<br>" + doc.logs;
       logs_show(doc);
       let freq = 0;
@@ -799,9 +790,9 @@ async function backup_doc(doc, tpe, retry, notif) {
       }
     })
     .catch(async (e) => {
-      const msg = err_msg(e);
+      const msg = logs_err_msg(e);
       UI_notif(msg);
-      if (notif && err_key(e) != "err.dir") await notify_user(t("backup.error_notif", { name: doc.name, msg: msg }), "dialog-error");
+      if (notif && logs_err_key(e) != "err.dir") await logs_notify_user(t("backup.error_notif", { name: doc.name, msg: msg }), "dialog-error");
       doc.logs = log + " ERR<br>" + doc.logs;
       logs_show(doc);
       // we handle the retry of the backup if needed
@@ -837,7 +828,7 @@ function logs_show(doc) {
   if (ll.length > 8) ll = ll.slice(0, 8-ll.length);
   doc.logs = ll.join("<br>");
   // save the value to the config file
-  save_datas();
+  datas_save();
 
   // we update the logs in the UI only if this is the current selected document
   for (let i=0; i< datas.docs.length; i++) {
@@ -857,7 +848,7 @@ function process_stop_all() {
   UI_btn_set_active("g_stop", false);
   UI_btn_set_active("g_go", true);
   datas.run = false;
-  update_status_text();
+  UI_update_status_text();
   if (!isset(datas.docs)) return;
   // for each doc, we stop the backups process
   for (let i=0; i< datas.docs.length; i++) {
@@ -911,7 +902,7 @@ async function doc_remove() {
   UI_tab_select(document.querySelectorAll(".tab")[0], false);
 
   // save the value to the config file
-  await save_datas();
+  await datas_save();
 
   // notif
   UI_notif(t("notif.saved"))
@@ -943,7 +934,7 @@ async function Autostart_check() {
     document.querySelector("#g_autostart").disabled = true;
     // if it's not enabled, it doesn't matter otherwise we warn the user
     if (!datas.autostart) {
-      update_autostart_label();
+      UI_update_autostart_label();
       return;
     }
     datas.autostart = false;
@@ -951,5 +942,5 @@ async function Autostart_check() {
     UI_notif(t("notif.autostart_fail"));
     await invoke("write_log", { text: "Cannot activate autostart on this system" });
   }
-  update_autostart_label();
+  UI_update_autostart_label();
 }
