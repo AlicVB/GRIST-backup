@@ -42,7 +42,6 @@ fn get_config_dir() -> Result<std::path::PathBuf, String> {
     return Ok(path);
 }
 
-// Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 #[tauri::command]
 fn load() -> Result<String, String> {
     // let's get the config dir
@@ -65,7 +64,7 @@ fn save(datas: &str) -> Result<(), String> {
         )
     })?;
     write_log(&format!(
-        "I : Configuration sauvegardée ici : {}",
+        "I : Configuration saved here : {}",
         path.display()
     ));
     return Ok(());
@@ -128,7 +127,7 @@ async fn grist_get_docs(server: String, api: String) -> Result<String, String> {
     let res = match cres {
         Ok(f) => f,
         Err(_) => {
-            write_log(&format!("E : API Erreur d'accès à {}/orgs", server));
+            write_log(&format!("E : Acces error to {}/orgs", server));
             return Err(get_error(
                 1,
                 "err.conn",
@@ -158,7 +157,7 @@ async fn grist_get_docs(server: String, api: String) -> Result<String, String> {
         Ok(f) => f,
         Err(_) => {
             write_log(&format!(
-                "E : Impossible de désérialiser le retour de {}/orgs",
+                "E : Cannot deserialize output of {}/orgs",
                 server
             ));
             return Err(get_error(
@@ -234,7 +233,7 @@ async fn grist_get_docs(server: String, api: String) -> Result<String, String> {
     }
     // and we can close the JSON array and return the JSON string
     ret += "]";
-    write_log(&format!("I : {} documents trouvés sur {}", nbdoc, server));
+    write_log(&format!("I : {} documents found on {}", nbdoc, server));
     return Ok(ret);
 }
 
@@ -251,7 +250,7 @@ async fn _grist_backup(
     let path = Path::new(&dir);
     if !path.exists() || !path.is_dir() || !path.is_absolute() {
         write_log(&format!(
-            "BACKUP Dossier \"{}\" invalide pour {} {}",
+            "BACKUP Directory \"{}\" is not valid for {} {}",
             dir, docname, tpe
         ));
         return Err(get_error(
@@ -274,7 +273,7 @@ async fn _grist_backup(
         Ok(f) => f,
         Err(_) => {
             write_log(&format!(
-                "E : API Erreur d'accès à {}/docs/{}/download{}",
+                "E : Access error to {}/docs/{}/download{}",
                 server, docid, tpe
             ));
             return Err(get_error(904, "err.api_call", serde_json::json!({})));
@@ -317,14 +316,14 @@ async fn _grist_backup(
         Ok(f) => f,
         Err(_) => {
             write_log(&format!(
-                "E : API Impossible de lire le retour de {}/docs/{}/download{}",
+                "E : API Cannot read the output of {}/docs/{}/download{}",
                 server, docid, tpe
             ));
             return Err(get_error(903, "err.api_read", serde_json::json!({})));
         }
     };
     write_log(&format!(
-        "I : API {}/docs/{}/download{} récupéré",
+        "I : API {}/docs/{}/download{} downloaded",
         server, docid, tpe
     ));
 
@@ -336,7 +335,7 @@ async fn _grist_backup(
     // and write the file content into the destination file
     if let Err(_) = fs::write(&path, bres) {
         write_log(&format!(
-            "Impossible d'enregistrer le fichier {}",
+            "E : Cannot save the file {}",
             path.display()
         ));
         return Err(get_error(
@@ -346,7 +345,7 @@ async fn _grist_backup(
         ));
     };
     write_log(&format!(
-        "I : BACKUP sauvegarde effectuée pour {} {}",
+        "I : BACKUP success for {} {}",
         docname, tpe
     ));
     return Ok("".to_string());
@@ -423,11 +422,11 @@ fn write_log(text: &str) {
 
 fn get_text_statut(api: &str, status: u16) -> String {
     match status {
-        404 => return format!("Impossible de trouver {}", api),
-        403 => return format!("Vous n'avez pas les droits pour accéder à {}", api),
-        401 => return format!("Erreur d'authentification pour accéder à {}", api),
-        200 => return format!("Accès réussi à {}", api),
-        e => return format!("Erreur {} pour accéder à {}", e, api),
+        404 => return format!("Cannot found {}", api),
+        403 => return format!("You don't have access rights for {}", api),
+        401 => return format!("Authentification error to access {}", api),
+        200 => return format!("Access successfull to {}", api),
+        e => return format!("Error {} to access {}", e, api),
     }
 }
 fn write_log_status(api: &str, status: u16) {
