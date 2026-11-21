@@ -13,73 +13,71 @@ fn clean_filename(filename: &str) -> String {
     re.replace_all(filename, "_").to_string()
 }
 
-fn get_config_dir() -> Option<std::path::PathBuf> {
-    // let's get the config dir
-    let cfd = dirs::config_dir();
-    if cfd.is_none() {
-        let _ = notify_rust::Notification::new()
-            .summary("GRIST backup")
-            .body("Impossible de récupérer le dossier de configuration !")
-            .icon("dialog-error")
-            .timeout(notify_rust::Timeout::Milliseconds(6000)) //milliseconds
-            .show();
-        return None;
+// We build a structured error : the frontend is in charge of the translation
+// with the message "key" and its "params".
+fn get_error(err: u16, key: &str, params: serde_json::Value) -> String {
+    return serde_json::json!({
+      "error": err,
+      "key": key,
+      "params": params
+    })
+    .to_string();
+}
+
+fn get_config_dir() -> Result<std::path::PathBuf, String> {
+    let cfd = match dirs::config_dir() {
+        Some(p) => p,
+        None => return Err(get_error(901, "err.config_dir", serde_json::json!({}))),
     };
-    let mut path = cfd.unwrap();
+    let mut path = cfd;
     path.push(env!("CARGO_PKG_NAME"));
     // we create it if needed
     if let Err(_) = fs::create_dir_all(&path) {
-        write_log(&format!(
-            "E : Impossible de créer le dossier {}",
-            path.display()
+        return Err(get_error(
+            901,
+            "err.config_create",
+            serde_json::json!({ "path": path.display().to_string() }),
         ));
-        let _ = notify_rust::Notification::new()
-            .summary("GRIST backup")
-            .body(&format!(
-                "Impossible de créer le dossier de configuration {}",
-                path.display()
-            ))
-            .icon("dialog-error")
-            .timeout(notify_rust::Timeout::Milliseconds(6000)) //milliseconds
-            .show();
-        return None;
     };
-    return Some(path);
-}
-
-// Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-#[tauri::command]
-fn load() -> String {
-    // let's get the config dir
-    let path = get_config_dir();
-    if path.is_none() {
-        return "".to_string();
-    }
-    let mut path = path.unwrap();
-    // if the config file exists, we read the file and return its content
-    path.push("config.txt");
-    let datas = fs::read_to_string(path);
-    match datas {
-        Ok(txt) => txt,
-        Err(_) => "".to_string(),
-    }
+    return Ok(path);
 }
 
 #[tauri::command]
-fn save(datas: &str) {
+fn load() -> Result<String, String> {
     // let's get the config dir
-    let path = get_config_dir();
-    if path.is_none() {
-        return;
-    }
-    let mut path = path.unwrap();
+    let mut path = get_config_dir()?;
     // if the config file exists, we read the file and return its content
     path.push("config.txt");
-    let _ = fs::write(&path, datas);
+    return Ok(fs::read_to_string(&path).unwrap_or_default());
+}
+
+#[tauri::command]
+fn save(datas: &str) -> Result<(), String> {
+    // let's get the config dir
+    let mut path = get_config_dir()?;
+    path.push("config.txt");
+    fs::write(&path, datas).map_err(|_| {
+        get_error(
+            901,
+            "err.config_write",
+            serde_json::json!({ "path": path.display().to_string() }),
+        )
+    })?;
     write_log(&format!(
-        "I : Configuration sauvegardée ici : {}",
+        "I : Configuration saved here : {}",
         path.display()
     ));
+    return Ok(());
+}
+
+#[tauri::command]
+fn notify(summary: String, body: String, icon: String) {
+    let _ = notify_rust::Notification::new()
+        .summary(&summary)
+        .body(&body)
+        .icon(&icon)
+        .timeout(notify_rust::Timeout::Milliseconds(6000)) //milliseconds
+        .show();
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -98,6 +96,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             load,
             save,
+            notify,
             grist_get_docs,
             grist_backup,
             write_log,
@@ -108,15 +107,7 @@ pub fn run() {
 }
 
 pub fn load_datas() -> String {
-    load()
-}
-
-fn get_error(err: u16, msg: &str) -> String {
-    return serde_json::json!({
-      "error": err,
-      "msg": msg
-    })
-    .to_string();
+    load().unwrap_or_default()
 }
 
 #[tauri::command]
@@ -136,15 +127,28 @@ async fn grist_get_docs(server: String, api: String) -> Result<String, String> {
     let res = match cres {
         Ok(f) => f,
         Err(_) => {
-            write_log(&format!("E : API Erreur d'accès à {}/orgs", server));
-            return Err(get_error(1, &format!("Erreur d'accès à {}/orgs", server))); // we return an error
+            write_log(&format!("E : Acces error to {}/orgs", server));
+            return Err(get_error(
+                1,
+                "err.conn",
+                serde_json::json!({ "url": format!("{}/orgs", server) }),
+            )); // we return an error
         }
     };
     if res.status().as_u16() != 200 {
         write_log_status(&format!("{}/orgs", server), res.status().as_u16());
+        let status = res.status().as_u16();
+        let url = format!("{}/orgs", server);
+        let key = match status {
+            404 => "err.url_not_found",
+            403 => "err.url_forbidden",
+            401 => "err.url_auth",
+            _ => "err.url_error",
+        };
         return Err(get_error(
-            res.status().as_u16(),
-            &get_text_statut(&format!("{}/orgs", server), res.status().as_u16()),
+            status,
+            key,
+            serde_json::json!({ "url": url, "code": status }),
         ));
     }
     // we deserialize the returned value
@@ -153,15 +157,13 @@ async fn grist_get_docs(server: String, api: String) -> Result<String, String> {
         Ok(f) => f,
         Err(_) => {
             write_log(&format!(
-                "E : Impossible de désérialiser le retour de {}/orgs",
+                "E : Cannot deserialize output of {}/orgs",
                 server
             ));
             return Err(get_error(
                 900,
-                &format!(
-                    "E : Impossible de désérialiser le retour de {}/orgs",
-                    server
-                ),
+                "err.deserialize",
+                serde_json::json!({ "url": format!("{}/orgs", server) }),
             ));
         }
     };
@@ -231,7 +233,7 @@ async fn grist_get_docs(server: String, api: String) -> Result<String, String> {
     }
     // and we can close the JSON array and return the JSON string
     ret += "]";
-    write_log(&format!("I : {} documents trouvés sur {}", nbdoc, server));
+    write_log(&format!("I : {} documents found on {}", nbdoc, server));
     return Ok(ret);
 }
 
@@ -248,15 +250,13 @@ async fn _grist_backup(
     let path = Path::new(&dir);
     if !path.exists() || !path.is_dir() || !path.is_absolute() {
         write_log(&format!(
-            "BACKUP Dossier \"{}\" invalide pour {} {}",
+            "BACKUP Directory \"{}\" is not valid for {} {}",
             dir, docname, tpe
         ));
         return Err(get_error(
             902,
-            &format!(
-                "Le dossier de sauvegarde \"{}\" n'est pas accessible !",
-                dir
-            ),
+            "err.dir",
+            serde_json::json!({ "dir": dir }),
         ));
     }
 
@@ -273,10 +273,10 @@ async fn _grist_backup(
         Ok(f) => f,
         Err(_) => {
             write_log(&format!(
-                "E : API Erreur d'accès à {}/docs/{}/download{}",
+                "E : Access error to {}/docs/{}/download{}",
                 server, docid, tpe
             ));
-            return Err(get_error(902, "Erreur dans l'appel de l'API"));
+            return Err(get_error(904, "err.api_call", serde_json::json!({})));
         }
     };
     // Check the return status
@@ -291,20 +291,23 @@ async fn _grist_backup(
         404 => {
             return Err(get_error(
                 res.status().as_u16(),
-                &format!("Impossible de trouver le document (id={})", docid),
+                "err.doc_not_found",
+                serde_json::json!({ "id": docid }),
             ));
         }
         403 => {
             return Err(get_error(
                 res.status().as_u16(),
-                &format!("Vous n'avez pas les droits suffisants (id={})", docid),
+                "err.forbidden",
+                serde_json::json!({ "id": docid }),
             ));
         }
         200 => (),
         e => {
             return Err(get_error(
                 res.status().as_u16(),
-                &format!("Erreur {} (id={})", e, docid),
+                "err.status",
+                serde_json::json!({ "code": e, "id": docid }),
             ));
         }
     };
@@ -313,14 +316,14 @@ async fn _grist_backup(
         Ok(f) => f,
         Err(_) => {
             write_log(&format!(
-                "E : API Impossible de lire le retour de {}/docs/{}/download{}",
+                "E : API Cannot read the output of {}/docs/{}/download{}",
                 server, docid, tpe
             ));
-            return Err(get_error(903, "Retour de l'API GRIST illisible"));
+            return Err(get_error(903, "err.api_read", serde_json::json!({})));
         }
     };
     write_log(&format!(
-        "I : API {}/docs/{}/download{} récupéré",
+        "I : API {}/docs/{}/download{} downloaded",
         server, docid, tpe
     ));
 
@@ -332,16 +335,17 @@ async fn _grist_backup(
     // and write the file content into the destination file
     if let Err(_) = fs::write(&path, bres) {
         write_log(&format!(
-            "Impossible d'enregistrer le fichier {}",
+            "E : Cannot save the file {}",
             path.display()
         ));
         return Err(get_error(
             903,
-            &format!("Impossible d'enregistrer le fichier {}", path.display()),
+            "err.file_write",
+            serde_json::json!({ "path": path.display().to_string() }),
         ));
     };
     write_log(&format!(
-        "I : BACKUP sauvegarde effectuée pour {} {}",
+        "I : BACKUP success for {} {}",
         docname, tpe
     ));
     return Ok("".to_string());
@@ -355,46 +359,9 @@ async fn grist_backup(
     docname: String,
     dir: String,
     btype: String,
-    notif: bool
 ) -> Result<String, String> {
-    let res = _grist_backup(server, api, docid, &docname, dir, btype).await;
-    match &res {
-        Ok(_) => {
-            let _ = notify_rust::Notification::new()
-                .summary("GRIST backup")
-                .body(&format!("{} : Sauvegarde effectuée !", docname))
-                .icon("dialog-information")
-                .timeout(notify_rust::Timeout::Milliseconds(6000)) //milliseconds
-                .show();
-        }
-        Err(r) => {
-          if notif {
-            let mut rr = "Erreur lors de la sauvegarde".to_string();
-            let mut err = 1;
-            if let Ok(rrr) = serde_json::from_str::<serde_json::Value>(r) {
-                rr = rrr["msg"]
-                    .as_str()
-                    .unwrap_or("Erreur lors de la sauvegarde")
-                    .to_string();
-
-                err = rrr["error"]
-                    .as_i64()
-                    .unwrap_or(1);
-            }
-            if err != 902 {
-              // don't notify directory error : it will spam the user
-              let _ = notify_rust::Notification::new()
-                .summary("GRIST backup")
-                .body(&format!("{} : {}", docname, rr))
-                .icon("dialog-error")
-                .timeout(notify_rust::Timeout::Milliseconds(6000)) //milliseconds
-                .show();
-            }
-          }
-        }
-    };
-
-    return res;
+    // the notifications are now sent by the frontend, with the translated messages
+    return _grist_backup(server, api, docid, &docname, dir, btype).await;
 }
 
 #[tauri::command]
@@ -430,11 +397,10 @@ async fn last_backup(docname: String, dir: String, tp: String) -> u64 {
 #[tauri::command]
 fn write_log(text: &str) {
     // get the log file
-    let path = get_config_dir();
-    if path.is_none() {
-        return;
-    }
-    let mut path = path.unwrap();
+    let mut path = match get_config_dir() {
+        Ok(p) => p,
+        Err(_) => return,
+    };
     path.push("log.txt");
 
     // eventually remove the first lines if there's too much content
@@ -446,7 +412,7 @@ fn write_log(text: &str) {
         text
     );
 
-    // append the line into the log file
+    // append the line to the log file
     if let Ok(mut file) = fs::OpenOptions::new().append(true).create(true).open(&path) {
         if let Ok(_) = writeln!(file, "{}", txt) {
             return;
@@ -456,11 +422,11 @@ fn write_log(text: &str) {
 
 fn get_text_statut(api: &str, status: u16) -> String {
     match status {
-        404 => return format!("Impossible de trouver {}", api),
-        403 => return format!("Vous n'avez pas les droits pour accéder à {}", api),
-        401 => return format!("Erreur d'authentification pour accéder à {}", api),
-        200 => return format!("Accès réussi à {}", api),
-        e => return format!("Erreur {} pour accéder à {}", e, api),
+        404 => return format!("Cannot found {}", api),
+        403 => return format!("You don't have access rights for {}", api),
+        401 => return format!("Authentification error to access {}", api),
+        200 => return format!("Access successfull to {}", api),
+        e => return format!("Error {} to access {}", e, api),
     }
 }
 fn write_log_status(api: &str, status: u16) {

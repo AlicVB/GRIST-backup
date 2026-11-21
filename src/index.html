@@ -4,100 +4,106 @@
     <meta charset="UTF-8" />
     <link rel="stylesheet" href="styles.css" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>GRIST sauvegarde</title>
+    <title data-i18n="app.title">GRIST sauvegarde</title>
     <script type="module" src="/main.js" defer></script>
   </head>
 
   <body>
     <main class="container">
-      <h1>Outil de sauvegarde de documents GRIST</h1>
+      <h1 data-i18n="h1.main">Outil de sauvegarde de documents GRIST</h1>
+      <div style="display:flex; justify-content:flex-end; margin-bottom:8px;">
+        <select id="lang_sel" data-i18n-title="lang.title">
+          <option value="fr">Français</option>
+          <option value="en">English</option>
+        </select>
+      </div>
       <div class="bloc">
         <div class="msg_hide" id="g_msg"></div>
         <div id="global">
           <div id="g_form">
-            <h3>Options globales de l'espace de travail GRIST :</h3>
+            <h3 data-i18n="global.options">Options globales de l'espace de travail GRIST :</h3>
             <div class="d_sav" style="margin-bottom:0;">
               <div>
-                <label>URL du serveur GRIST : <input class="large_input" id="g_server" value="https://grist.numerique.gouv.fr/" /></label><br>
-                <label>Clé API : <input id="g_api" class="large_input" placeholder="Clé API..." /></label><br>
-                <input type="checkbox" id="g_autostart"/><label for="g_autostart" id="g_autostart_label">Lancer au démarrage du système</label>
+                <label><span data-i18n="global.server">URL du serveur GRIST :</span> <input class="large_input" id="g_server" value="https://grist.numerique.gouv.fr/" /></label><br>
+                <label><span data-i18n="global.api">Clé API :</span> <input id="g_api" class="large_input" placeholder="Clé API..." data-i18n-placeholder="global.api_placeholder" /></label><br>
+                <input type="checkbox" id="g_autostart"/><label for="g_autostart" id="g_autostart_label" data-i18n="global.autostart">Lancer au démarrage du système</label>
               </div>
-              <img class="img_btn img_btn_disabled" id="g_save" src="assets/document-save.svg" title="Enregistrer les modifications"/>
+              <img class="img_btn img_btn_disabled" id="g_save" src="assets/document-save.svg" title="Enregistrer les modifications" data-i18n-title="btn.save"/>
             </div>
           </div>
           <div>
-            <h3>Etat du service :</h3>
+            <h3 data-i18n="server.state">Etat du service :</h3>
             <div class="d_sav" style="margin-bottom:0;">
-              <div id="g_statut">
+              <div id="g_statut" data-i18n="status.stopped">
                 Arrêté
               </div>
-              <img class="img_btn" id="g_stop" src="assets/media-playback-stop.svg" title="Arrêter les sauvegardes programmées"/>
-              <img class="img_btn" id="g_go" src="assets/media-playback-start.svg" title="Lancer les sauvegardes programmées"/>
+              <img class="img_btn" id="g_stop" src="assets/media-playback-stop.svg" title="Arrêter les sauvegardes programmées" data-i18n-title="btn.stop"/>
+              <img class="img_btn" id="g_go" src="assets/media-playback-start.svg" title="Lancer les sauvegardes programmées" data-i18n-title="btn.start"/>
             </div>
           </div>
         </div>
       </div>
-      <h2>Documents à sauvegarder :</h2>
+      <h2 data-i18n="docs.title">Documents à sauvegarder :</h2>
       <div id="tabs">
-        <img class="img_btn" id="tab_add" src="assets/list-add.svg" title="Ajouter un document à gérer"/>
+        <img class="img_btn" id="tab_add" src="assets/list-add.svg" title="Ajouter un document à gérer" data-i18n-title="btn.add_doc"/>
       </div>
       <div class="bloc">
         <div class="msg_hide" id="d_msg"></div>
         <div id="doc">
           <div class="doc_c" id="d_form" >
             <input id="d_index" type="hidden" value="-1"/>
-            <h3 class="doc_c">Identification du document :</h3>
+            <h3 class="doc_c" data-i18n="doc.ident">Identification du document :</h3>
             <div class="d_sav">
               <div>
-                <label id="d_lsel">Document GRIST : <select class="large_input" id="d_sel"></select></label><br>
-                <label id="d_lid">Identifiant GRIST : <input id="d_id" class="large_input" placeholder="Identifiant du document" /></label><br>
-                <label>Nom du document : <input id="d_name" placeholder="Le nom que vous voulez" /></label><br>
+                <label id="d_lsel"><span data-i18n="doc.select">Document GRIST :</span> <select class="large_input" id="d_sel"></select></label><br>
+                <label id="d_lid"><span data-i18n="doc.id">Identifiant GRIST :</span> <input id="d_id" class="large_input" placeholder="Identifiant du document" data-i18n-placeholder="doc.id_placeholder" /></label><br>
+                <label><span data-i18n="doc.name">Nom du document :</span> <input id="d_name" placeholder="Le nom que vous voulez" data-i18n-placeholder="doc.name_placeholder" /></label><br>
               </div>
             </div>
-            <h3>Sauvegarde complète :</h3>
+            <h3 data-i18n="full.title">Sauvegarde complète :</h3>
             <div class="d_sav">
               <div class="d_sav_form">
-                <label><input id="d_savg" type="checkbox" /> Activer la sauvegarde complète (recommandé)</label><br>
-                <label>Dossier de destination : <input class="large_input" id="d_savg_dir" placeholder="Dossier sur le disque" /></label><button id="d_savg_dir_open">...</button><br>
+                <label><input id="d_savg" type="checkbox" /> <span data-i18n="full.enable">Activer la sauvegarde complète (recommandé)</span></label><br>
+                <label><span data-i18n="dir.label">Dossier de destination :</span> <input class="large_input" id="d_savg_dir" placeholder="Dossier sur le disque" data-i18n-placeholder="dir.placeholder" /></label><button id="d_savg_dir_open">...</button><br>
                 <label>
-                  Fréquence de sauvegarde :
-                  <input id="d_savg_fd" type="number" min="0" max="30" /> jours
-                  <input id="d_savg_fh" type="number" min="0" max="23" /> heures
-                  <input id="d_savg_fm" type="number" min="0" max="59" /> minutes
+                  <span data-i18n="freq.label">Fréquence de sauvegarde :</span>
+                  <input id="d_savg_fd" type="number" min="0" max="30" /> <span data-i18n="freq.days">jours</span>
+                  <input id="d_savg_fh" type="number" min="0" max="23" /> <span data-i18n="freq.hours">heures</span>
+                  <input id="d_savg_fm" type="number" min="0" max="59" /> <span data-i18n="freq.minutes">minutes</span>
                 </label>
               </div>
               <div class="d_sav_actions">
-                <img class="img_btn" id="d_savg_now" src="assets/download.svg" title="Effectuer une sauvegarde maintenant"/>
+                <img class="img_btn" id="d_savg_now" src="assets/download.svg" title="Effectuer une sauvegarde maintenant" data-i18n-title="btn.backup_now"/>
               </div>
             </div>
-            <h3>Sauvegarde tableur Excel :</h3>
+            <h3 data-i18n="xls.title">Sauvegarde tableur Excel :</h3>
             <div class="d_sav">
               <div class="d_sav_form">
-                <label><input id="d_savx" type="checkbox" /> Activer la sauvegarde Excel (accès hors ligne)</label><br>
-                <label>Dossier de destination : <input class="large_input" id="d_savx_dir" placeholder="Dossier sur le disque" /></label><button id="d_savx_dir_open">...</button><br>
+                <label><input id="d_savx" type="checkbox" /> <span data-i18n="xls.enable">Activer la sauvegarde Excel (accès hors ligne)</span></label><br>
+                <label><span data-i18n="dir.label">Dossier de destination :</span> <input class="large_input" id="d_savx_dir" placeholder="Dossier sur le disque" data-i18n-placeholder="dir.placeholder" /></label><button id="d_savx_dir_open">...</button><br>
                 <label>
-                  Fréquence de sauvegarde :
-                  <input id="d_savx_fd" type="number" min="0" max="30" /> jours
-                  <input id="d_savx_fh" type="number" min="0" max="23" /> heures
-                  <input id="d_savx_fm" type="number" min="0" max="59" /> minutes
+                  <span data-i18n="freq.label">Fréquence de sauvegarde :</span>
+                  <input id="d_savx_fd" type="number" min="0" max="30" /> <span data-i18n="freq.days">jours</span>
+                  <input id="d_savx_fh" type="number" min="0" max="23" /> <span data-i18n="freq.hours">heures</span>
+                  <input id="d_savx_fm" type="number" min="0" max="59" /> <span data-i18n="freq.minutes">minutes</span>
                 </label>
               </div>
               <div class="d_sav_actions">
-                <img class="img_btn" id="d_savx_now" src="assets/download.svg" title="Effectuer une sauvegarde maintenant"/>
+                <img class="img_btn" id="d_savx_now" src="assets/download.svg" title="Effectuer une sauvegarde maintenant" data-i18n-title="btn.backup_now"/>
               </div>
             </div>
             <div id="d_save_div">
-              <img class="img_btn img_btn_disabled" id="d_save" src="assets/document-save.svg" title="Enregistrer les modifications"/>
-              <img class="img_btn" id="d_remove" src="assets/user-trash.svg" title="Ne plus gérer ce document"/>
+              <img class="img_btn img_btn_disabled" id="d_save" src="assets/document-save.svg" title="Enregistrer les modifications" data-i18n-title="btn.save"/>
+              <img class="img_btn" id="d_remove" src="assets/user-trash.svg" title="Ne plus gérer ce document" data-i18n-title="btn.remove_doc"/>
             </div>
           </div>
           <div>
-            <h3>Prochaines sauvegardes :</h3>
+            <h3 data-i18n="next.title">Prochaines sauvegardes :</h3>
             <div class="d_sav">
               <div class="logs" id="d_next">
               </div>
             </div>
-            <h3>Dernières sauvegardes :</h3>
+            <h3 data-i18n="last.title">Dernières sauvegardes :</h3>
             <div class="d_sav">
               <div class="logs" id="d_logs">
               </div>
@@ -106,7 +112,7 @@
         </div>
       </div>
       <div id="notif"></div>
-      <img id="a_propos" src="assets/dialog-question.svg" title="A propos"/>
+      <img id="a_propos" src="assets/dialog-question.svg" title="A propos" data-i18n-title="btn.about"/>
     </main>
   </body>
 </html>
