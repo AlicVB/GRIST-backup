@@ -1,5 +1,7 @@
 "use strict";
 
+import { LANGS, set_lang, t, apply_i18n } from "./i18n.js";
+
 const { ask, open, message } = window.__TAURI__.dialog;
 const { invoke } = window.__TAURI__.core;
 const { TrayIcon } = window.__TAURI__.tray;
@@ -16,22 +18,31 @@ const STATUT = Object.freeze({
   STOPPED: 3,
 });
 
+let datas = {};
+let tray = null;
+let autostart_available = true;
+
 // All the stuff for the systray icon
-async function systray() {
+async function update_tray() {
   const menu = await Menu.new({
     items: [
       {
         id: 'configure',
-        text: 'Configurer',
+        text: t('tray.configure'),
         action: systray_config,
       },
       {
         id: 'quit',
-        text: 'Quitter',
+        text: t('tray.quit'),
         action: systray_quit,
       },
     ],
   });
+
+  if (tray) {
+    await tray.set_menu(menu);
+    return;
+  }
 
   const tray_opt = {
     // here you can add a tray menu, title, tooltip, event handler, etc
@@ -40,7 +51,7 @@ async function systray() {
     icon: await defaultWindowIcon(),
   };
 
-  const tray = await TrayIcon.new(tray_opt);
+  tray = await TrayIcon.new(tray_opt);
   tray.setVisible(true);
 }
 
@@ -55,24 +66,94 @@ function isset (accessor) {
   return (typeof accessor !== 'undefined');
 }
 
+// return the message key of a Tauri error returned by the Rust side
+function err_key(error) {
+  try {
+    return JSON.parse(error).key || "";
+  } catch {
+    return "";
+  }
+}
+
+// translate a Tauri error returned by the Rust side
+function err_msg(error) {
+  try {
+    const e = JSON.parse(error);
+    return t(e.key || "err.unknown", e.params || {});
+  } catch {
+    return (typeof error === "string") ? error : String(error);
+  }
+}
+
+async function notify_user(body, icon) {
+  try {
+    await invoke("notify", { summary: "GRIST backup", body: body, icon: icon });
+  } catch {}
+}
+
+async function save_datas() {
+  const txt = JSON.stringify(datas);
+  try {
+    await invoke("save", { datas: txt });
+  } catch (error) {
+    UI_notif(err_msg(error));
+  }
+}
+
+function update_status_text() {
+  document.querySelector("#g_statut").textContent = t(datas.run ? "status.running" : "status.stopped");
+}
+
+function update_autostart_label() {
+  document.querySelector("#g_autostart_label").textContent = t(autostart_available ? "global.autostart" : "global.autostart_unavailable");
+}
+
+async function lang_change() {
+  const lg = document.querySelector("#lang_sel").value;
+  datas.lang = lg;
+  set_lang(lg);
+  apply_i18n();
+  update_status_text();
+  update_autostart_label();
+  await update_tray();
+  await save_datas();
+}
+
 async function config_load_datas() {
   // we stop all the backups if any
   process_stop_all();
 
   // let's start by loading configuration
-  let txt = await invoke("load");
+  let txt = "";
+  try {
+    txt = await invoke("load");
+  } catch (error) {
+    UI_notif(err_msg(error));
+  }
   if (txt != "") datas = JSON.parse(txt);
   datas_init(); // check datas values and initialize them if needed
 
+  // language : saved value, otherwise the system locale
+  let lg = datas.lang;
+  if (!lg) lg = (navigator.language || "en").slice(0, 2);
+  if (!LANGS.includes(lg)) lg = "en";
+  datas.lang = lg;
+  set_lang(lg);
+  apply_i18n();
+  document.querySelector("#lang_sel").value = lg;
+
   // initialize the UI with the datas loaded
   UI_init();
+
+  // and the systray menu in the right language
+  await update_tray();
 
   // check autostart statut
   await Autostart_check();
 }
 
-let datas = {};
-systray();
+datas_init();
+update_tray();
 
 getCurrentWindow().onCloseRequested(UI_close);
 
@@ -88,6 +169,7 @@ window.addEventListener("DOMContentLoaded", async () => {
   document.querySelector("#d_savx_now").addEventListener("click", backup_now);
   document.querySelector("#g_stop").addEventListener("click", process_stop_all);
   document.querySelector("#g_go").addEventListener("click", process_launch);
+  document.querySelector("#lang_sel").addEventListener("change", lang_change);
 
   document.querySelector("#g_api").addEventListener("change", UI_global_test_change);
   document.querySelector("#g_server").addEventListener("change", UI_global_test_change);
@@ -119,6 +201,7 @@ function datas_init() {
   if (!isset(datas.api)) datas.api = "";
   if (!isset(datas.docs)) datas.docs = [];
   if (!isset(datas.autostart)) datas.autostart = false;
+  if (!isset(datas.lang)) datas.lang = null;
   if (datas.server.slice(-1) == "/") datas.server = datas.server.slice(0,-1);
 
   // we also reset all the pids/pidt/errors
@@ -178,7 +261,7 @@ function docs_list_apply(docs) {
       }
     }
     if (!ok) {
-      datas.docs[i].savg_msg = "Le document n'est pas accessible !";
+      datas.docs[i].savg_msg = t("doc.unreachable");
       datas.docs[i].savx_msg = "";
       datas.docs[i].savg_statut = STATUT.STOPPED;
       datas.docs[i].savx_statut = STATUT.STOPPED;
@@ -236,9 +319,8 @@ async function start_API() {
       process_launch();
     })
     .catch((error) => {
-      let err = JSON.parse(error);
-      // we show the error msg
-      datas.msg = err.msg;
+      // we show the translated error msg
+      datas.msg = err_msg(error);
       datas.statut = STATUT.STOPPED;
       logs_update_general_msg();
       // and we update the tabs and select
@@ -294,7 +376,7 @@ async function UI_tab_select(el, save) {
 
   // we want to be sure previous datas are saved if needed
   if (save && document.querySelector("#d_index").value >= 0 && UI_btn_get_active("d_save")) {
-    const answer = await ask('Voulez-vous enregistrer les données avant de changer de document ?', {
+    const answer = await ask(t('dialog.save_before_switch'), {
       title: 'GRIST backup',
       kind: 'warning',
     });
@@ -393,7 +475,7 @@ function doc_add() {
   // let's add the doc in the datas first
   let doc = {};
   doc.id = "";
-  doc.name = "sans nom";
+  doc.name = t("doc.unnamed");
   doc.savg = true;
   doc.savg_dir = "";
   doc.savg_freq = 86400; // one day in seconds
@@ -427,7 +509,7 @@ async function config_doc_save() {
   // let's get the doc object and update it
   const i = document.querySelector("#d_index").value;
   if (i < 0 || i >= datas.docs.length) {
-    console.log("Impossible de sauvegarder. Index introuvable");
+    console.log(t("log.index_not_found"));
     return;
   }
   let doc = datas.docs[i];
@@ -445,27 +527,27 @@ async function config_doc_save() {
   doc.savx_freq = document.querySelector("#d_savx_fd").value * 24*60*60 + document.querySelector("#d_savx_fh").value * 60*60 + document.querySelector("#d_savx_fm").value * 60;
 
   // safety checks
-  let notif = "Sauvegarde effectuée"
+  let notif = t("notif.saved")
   if (doc.savg) {
     if (doc.savg_dir == "") {
-      notif += "<br> - GRIST désactivé : dossier vide"
+      notif += "<br>" + t("notif.grist_disabled_empty")
       doc.savg = false;
       document.querySelector("#d_savg").checked = false;
     }
     if (doc.savg_freq < 60) {
-      notif += "<br> - GRIST désactivé : fréquence inférieure à 1 min."
+      notif += "<br>" + t("notif.grist_disabled_freq")
       doc.savg = false;
       document.querySelector("#d_savg").checked = false;
     }
   }
   if (doc.savx) {
     if (doc.savx_dir == "") {
-      notif += "<br> - EXCEL désactivé : dossier vide"
+      notif += "<br>" + t("notif.excel_disabled_empty")
       doc.savx = false;
       document.querySelector("#d_savx").checked = false;
     }
     if (doc.savx_freq < 60) {
-      notif += "<br> - EXCEL désactivé : fréquence inférieure à 1 min."
+      notif += "<br>" + t("notif.excel_disabled_freq")
       doc.savx = false;
       document.querySelector("#d_savx").checked = false;
     }
@@ -483,8 +565,7 @@ async function config_doc_save() {
   els[i].textContent = doc.name;
 
   // save the value to the config file
-  const txt = JSON.stringify(datas);
-  await invoke("save", { datas: txt });
+  await save_datas();
 
   // notif
   UI_notif(notif);
@@ -536,11 +617,10 @@ async function config_global_save() {
   datas.autostart = document.querySelector("#g_autostart").checked;
 
   // save the value to the config file
-  const txt = JSON.stringify(datas);
-  await invoke("save", { datas: txt });
+  await save_datas();
 
   // notif
-  UI_notif("Sauvegarde effectuée")
+  UI_notif(t("notif.saved"))
 
   // reload the datas
   await config_load_datas();
@@ -578,7 +658,7 @@ async function backup_now(event) {
   // details of the document to backup
   const i = document.querySelector("#d_index").value;
   if (i < 0 || i >= datas.docs.length) {
-    console.log("Impossible de sauvegarder. Index introuvable");
+    console.log(t("log.index_not_found"));
     return;
   }
 
@@ -620,15 +700,14 @@ function process_launch() {
     // update the buttons
     UI_btn_set_active("g_stop", true);
     UI_btn_set_active("g_go", false);
-    document.querySelector("#g_statut").textContent = "Lancé";
     datas.run = true;
   } else {
     // update the buttons
     UI_btn_set_active("g_stop", false);
     UI_btn_set_active("g_go", true);
-    document.querySelector("#g_statut").textContent = "Arrêté";
     datas.run = false;
   }
+  update_status_text();
 }
 
 async function process_launch_doc(doc, tpe) {
@@ -693,10 +772,11 @@ async function backup_doc(doc, tpe, retry, notif) {
   if (tpe == "/xlsx") log = "EXCEL : ";
   const dt = new Date();
   log += dt.toLocaleString();
-  invoke("grist_backup", { server: datas.server, api: datas.api, docid: doc.id, docname: doc.name, dir: dir, btype: tpe, notif: notif})
-    .then((txt) => {
+  invoke("grist_backup", { server: datas.server, api: datas.api, docid: doc.id, docname: doc.name, dir: dir, btype: tpe})
+    .then(async (txt) => {
       // successfull backup
-      UI_notif("Sauvegarde effectuée avec succès");
+      UI_notif(t("notif.saved_ok"));
+      if (notif) await notify_user(t("backup.success_notif", { name: doc.name }), "dialog-information");
       doc.logs = log + " OK<br>" + doc.logs;
       logs_show(doc);
       let freq = 0;
@@ -719,9 +799,10 @@ async function backup_doc(doc, tpe, retry, notif) {
         else doc.savg_pidt = pidt;
       }
     })
-    .catch((e) => {
-      let err = JSON.parse(e);
-      UI_notif(err.msg);
+    .catch(async (e) => {
+      const msg = err_msg(e);
+      UI_notif(msg);
+      if (notif && err_key(e) != "err.dir") await notify_user(t("backup.error_notif", { name: doc.name, msg: msg }), "dialog-error");
       doc.logs = log + " ERR<br>" + doc.logs;
       logs_show(doc);
       // we handle the retry of the backup if needed
@@ -740,10 +821,10 @@ async function backup_doc(doc, tpe, retry, notif) {
       }
       // we update the error banner
       if (tpe == "/xlsx") {
-        doc.savx_msg = err.msg;
+        doc.savx_msg = msg;
         doc.savx_statut = STATUT.ISSUE;
       } else {
-        doc.savg_msg = err.msg;
+        doc.savg_msg = msg;
         doc.savg_statut = STATUT.ISSUE;
       }
       logs_update_doc_msg(doc);
@@ -757,8 +838,7 @@ function logs_show(doc) {
   if (ll.length > 8) ll = ll.slice(0, 8-ll.length);
   doc.logs = ll.join("<br>");
   // save the value to the config file
-  const txt = JSON.stringify(datas);
-  invoke("save", { datas: txt });
+  save_datas();
 
   // we update the logs in the UI only if this is the current selected document
   for (let i=0; i< datas.docs.length; i++) {
@@ -777,8 +857,8 @@ function process_stop_all() {
   // update the buttons
   UI_btn_set_active("g_stop", false);
   UI_btn_set_active("g_go", true);
-  document.querySelector("#g_statut").textContent = "Arrêté";
   datas.run = false;
+  update_status_text();
   if (!isset(datas.docs)) return;
   // for each doc, we stop the backups process
   for (let i=0; i< datas.docs.length; i++) {
@@ -832,18 +912,17 @@ async function doc_remove() {
   UI_tab_select(document.querySelectorAll(".tab")[0], false);
 
   // save the value to the config file
-  const txt = JSON.stringify(datas);
-  await invoke("save", { datas: txt });
+  await save_datas();
 
   // notif
-  UI_notif("Sauvegarde effectuée")
+  UI_notif(t("notif.saved"))
 }
 
 async function UI_a_propos() {
   let txt = "GRIST backup";
-  txt += "\nversion : " + await getVersion();
-  txt += "\n\nLicence : GPL-3.0-or-later";
-  txt += "\ncopyright : A.RENAUDIN 2026";
+  txt += "\n" + t("about.version") + await getVersion();
+  txt += "\n" + t("about.license");
+  txt += "\n" + t("about.copyright");
   await message(txt, { title: 'GRIST backup', kind: 'info' });
 }
 
@@ -857,17 +936,21 @@ async function Autostart_check() {
     let auto = await isEnabled();
     if (datas.autostart && !auto) await enable();
     else if (!datas.autostart && auto) await disable();
-    document.querySelector("#g_autostart_label").textContent = "Lancer au démarrage du système";
+    autostart_available = true;
   } catch(error) {
     // autostart can't be enable on this platform
-    document.querySelector("#g_autostart_label").textContent = "Lancer au démarrage du système (indisponible)";
+    autostart_available = false;
     document.querySelector("#g_autostart").checked = false;
     document.querySelector("#g_autostart").disabled = true;
     // if it's not enabled, it doesn't matter otherwise we warn the user
-    if (!datas.autostart) return;
+    if (!datas.autostart) {
+      update_autostart_label();
+      return;
+    }
     datas.autostart = false;
     config_global_save();
-    UI_notif("Impossible d'activer le démarrage automatique sur ce système");
+    UI_notif(t("notif.autostart_fail"));
     await invoke("write_log", { text: "Cannot activate autostart on this system" });
   }
+  update_autostart_label();
 }
