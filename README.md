@@ -2,7 +2,7 @@
 
 Tool to automate GRIST backups.
 
-![1794686512478](image/README/1794686512478.png)
+![1795300217150](image/README/1795300217150.png)
 
 ## Details
 
