@@ -153,7 +153,6 @@ async function config_load_datas() {
 }
 
 datas_init();
-update_tray();
 
 getCurrentWindow().onCloseRequested(UI_close);
 
