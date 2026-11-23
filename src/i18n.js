@@ -77,6 +77,7 @@ const translations = {
     "err.config_dir": "Impossible de récupérer le dossier de configuration !",
     "err.config_create": "Impossible de créer le dossier de configuration {path}",
     "err.config_write": "Impossible d'écrire le fichier de configuration {path}",
+    "err.conficontent": "Impossible de lire le fichier de configuration",
   },
   en: {
     "app.title": "GRIST backup",
@@ -152,6 +153,7 @@ const translations = {
     "err.config_dir": "Cannot get the configuration folder!",
     "err.config_create": "Cannot create the configuration folder {path}",
     "err.config_write": "Cannot write the configuration file {path}",
+    "err.conficontent": "Cannot read the configuration file",
   },
 };
 

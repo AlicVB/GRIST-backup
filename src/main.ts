@@ -45,7 +45,7 @@ class _datas {
   server: string = "";
   api: string = "";
   autostart: boolean = false;
-  lang: string = "en";
+  lang: string = (navigator.language || "en").slice(0, 2);
 
   run: boolean = false;
   pidt: number = -1;
@@ -68,8 +68,6 @@ let datas:_datas = new _datas;
 let availabe_docs: _available_docs = {};
 let tray:TrayIcon;
 let autostart_available = true;
-
-datas_init();
 
 getCurrentWindow().onCloseRequested(UI_close);
 
@@ -107,8 +105,17 @@ window.addEventListener("DOMContentLoaded", async () => {
   // let's start by loading configuration
   await config_load_datas();
 
+  // set the langage
+  await lang_apply(datas.lang);
+
+  // update the UI (tabs, etc)
+  UI_init();
+
+  // check autostart statut
+  await Autostart_check();
+
   // and we launch the process
-  start_API();
+  start_API(true);
 });
 
 
@@ -180,74 +187,76 @@ function UI_update_autostart_label() {
   if (e) e.textContent = t(autostart_available ? "global.autostart" : "global.autostart_unavailable");
 }
 
-async function lang_change() {
-  const lg = _get_input("#lang_sel");
-  datas.lang = lg;
-  set_lang(lg);
+async function lang_apply(lang: string) {
+  _set_input("#lang_sel", lang);
+  datas.lang = lang;
+  set_lang(lang);
   apply_i18n();
   UI_update_status_text();
   UI_update_autostart_label();
   await systray_update();
+}
+
+async function lang_change() {
+  const lg = _get_input("#lang_sel");
+  await lang_apply(lg);
   await datas_save();
 }
 
-async function config_load_datas() {
+async function config_load_datas(): Promise<boolean> {
   // we stop all the backups if any
-  process_stop_all();
+  //process_stop_all();
+
+  // in any cases, we initialize the datas
+  datas = new _datas;
 
   // let's start by loading configuration
-  let txt = "";
+  let json = "";
   try {
-    txt = await invoke("load");
+    json = await invoke("load");
   } catch (error) {
-    if (typeof error === "string") UI_notif(_parse_error(error).message);
+    if (typeof error === "string") await logs_notify_user(_parse_error(error).message, "dialog-error");
+    return false;
   }
-  if (txt != "") datas = JSON.parse(txt);
-  datas_init(); // check datas values and initialize them if needed
+  if (json == "") return false;
 
-  // language : saved value, otherwise the system locale
-  let lg = datas.lang;
-  if (!lg) lg = (navigator.language || "en").slice(0, 2);
-  if (!LANGS.includes(lg)) lg = "en";
-  datas.lang = lg;
-  set_lang(lg);
-  apply_i18n();
-  _set_input("#lang_sel", lg);
-
-  // initialize the UI with the datas loaded
-  UI_init();
-
-  // and the systray menu in the right language
-  await systray_update();
-
-  // check autostart statut
-  await Autostart_check();
-}
-
-function datas_init() {
-  if (!isset(datas.server)) datas.server = "https://grist.numerique.gouv.fr/api";
-  if (!isset(datas.api)) datas.api = "";
-  if (!isset(datas.docs)) datas.docs = [];
-  if (!isset(datas.autostart)) datas.autostart = false;
-  if (!isset(datas.lang)) datas.lang = "en";
-  if (datas.server.slice(-1) == "/") datas.server = datas.server.slice(0,-1);
-
-  // we also reset all the pids/pidt/errors
-  // ideally those values shouldn't end in the config file, but that's much easier to have one unique structure
-  datas.pidt = 0;
-  datas.run = false;
-  datas.msg = "";
-  datas.statut = STATUT.OK;
-  for (let i=0; i<datas.docs.length; i++) {
-    datas.docs[i].savg_pidt = 0;
-    datas.docs[i].savx_pidt = 0;
-    datas.docs[i].savg_statut = STATUT.OK;
-    datas.docs[i].savx_statut = STATUT.OK;
-    datas.docs[i].savg_msg = "";
-    datas.docs[i].savx_msg = "";
-    datas.docs[i].savg_next = "";
-    datas.docs[i].savx_next = "";
+  // parse the config
+  let j: any;
+  try {
+    j = JSON.parse(json);
+  } catch (error) {
+    if (typeof error === "string") await logs_notify_user(t("err.conficontent"), "dialog-error");
+    return false;
   }
+
+  // we read the datas and populate the datas class (which as already been initialized)
+  // if an entry doesn't exists or is malformed, we just skip it.
+  if (j.server && typeof j.server === "string") datas.server = j.server;
+  if (datas.server.slice(-1) == "/") datas.server = datas.server.slice(0,-1); // avoid final slash in server url
+  if (j.api && typeof j.api === "string") datas.api = j.api;
+  if (j.autostart && typeof j.autostart === "string") datas.autostart = _string_to_bool(j.autostart);
+  if (j.lang && typeof j.lang === "string" && LANGS.includes(j.lang)) datas.lang = j.lang;
+
+  if (j.docs && Array.isArray(j.docs)) {
+    for (let i=0; i<j.docs.length; i++) {
+      // minimal value to define a doc are id and name
+      let d: any = j.docs[i];
+      if (d.id && d.name && typeof d.id === "string" && typeof d.name === "string") {
+        let doc = new _doc;
+        doc.id = d.id;
+        doc.name = d.name;
+        if (d.savg && typeof d.savg === "string") doc.savg = _string_to_bool(d.savg);
+        if (d.savx && typeof d.savx === "string") doc.savx = _string_to_bool(d.savx);
+        if (d.savg_dir && typeof d.savg_dir === "string") doc.savg_dir = d.savg_dir;
+        if (d.savx_dir && typeof d.savx_dir === "string") doc.savx_dir = d.savx_dir;
+        if (d.savg_freq && !isNaN(d.savg_freq)) doc.savg_freq = Math.max(parseInt(d.savg_freq), 60);
+        if (d.savx_freq && !isNaN(d.savx_freq)) doc.savx_freq = Math.max(parseInt(d.savx_freq), 60);
+        if (d.logs && typeof d.logs === "string") doc.logs = d.logs;
+        datas.docs.push(doc);
+      }
+    }
+  }
+  return true;
 }
 
 function UI_init() {
@@ -273,7 +282,11 @@ function UI_init() {
   }
 
   // select the first tab if any
-  UI_tab_select(<HTMLElement>document.querySelectorAll(".tab")[0], false);
+  if (datas.docs.length > 0) {
+    UI_tab_select(<HTMLElement>document.querySelectorAll(".tab")[0], false);
+  } else {
+    UI_tab_select(null, false);
+  }
 }
 
 function docs_list_apply(docs: any) {
@@ -283,7 +296,7 @@ function docs_list_apply(docs: any) {
     let id = datas.docs[i].id;
     let ok = false;
     for (let j=0; j< docs.length; j++) {
-      if (docs[j].id == id) {
+      if (docs[j].id && docs[j].id == id) {
         ok = true;
         break;
       }
@@ -301,14 +314,7 @@ function docs_list_apply(docs: any) {
     }
   }
 
-  // update the list of all available docs
-  availabe_docs = {}; // reset the list
-  for (let j=0; j< docs.length; j++) {
-    availabe_docs[docs[j].id] = docs[j].name;
-  }
-
-  // we update the list of options available in the select form
-  // we clear the select form
+  // reset the combobox
   let sel:HTMLSelectElement | null = document.querySelector("#d_sel");
   if (sel) {
     sel.removeEventListener("change", doc_cb_changed);
@@ -323,35 +329,47 @@ function docs_list_apply(docs: any) {
     sel.add(o);
     // we select this option by default
     sel.selectedIndex = 0;
-
-    // we add all the items recently loaded
-    for (let j=0; j< docs.length; j++) {
-      o = document.createElement("option");
-      o.value = docs[j].id;
-      o.text = docs[j].path;
-      sel.add(o);
-      // we select this option if this is the one from the actual doc
-      if (docs[j].id == _get_input("#d_id")) sel.selectedIndex = j+1;
-    }
-    sel.addEventListener("change", doc_cb_changed);
   }
+
+  // update the list of all available docs and the combobox
+  availabe_docs = {}; // reset the list
+  for (let j=0; j< docs.length; j++) {
+    if (docs[j].id && typeof docs[j].id === "string" && docs[j].id != "" &&
+        docs[j].name && typeof docs[j].name === "string" && docs[j].name != "" &&
+        docs[j].path && typeof docs[j].path === "string" && docs[j].path != "")
+    {
+      availabe_docs[docs[j].id] = docs[j].name;
+      if (sel) {
+        let o = document.createElement("option");
+        o.value = docs[j].id;
+        o.text = docs[j].path;
+        sel.add(o);
+        // we select this option if this is the one from the actual doc
+        if (docs[j].id == _get_input("#d_id")) sel.selectedIndex = j+1;
+      }
+    }
+  }
+
+  if (sel) sel.addEventListener("change", doc_cb_changed);
 }
 
-async function start_API() {
+async function start_API(start_process: boolean) {
   // we load the list of available documents via the GRIST API
-  let server = datas.server;
-  let api = datas.api;
-  datas.pidt = 0;
-  invoke<string>("grist_get_docs", {server: server, api: api})
+  if (datas.pidt > 0) {
+    clearTimeout(datas.pidt);
+  }
+  invoke<string>("grist_get_docs", {server: datas.server, api: datas.api})
     .then((txt) => {
       datas.msg = "";
       datas.statut = STATUT.OK;
       datas.pidt = 0;
       logs_update_general_msg();
       let docs = JSON.parse(txt);
-      docs_list_apply(docs);
+      if (docs && Array.isArray(docs)) docs_list_apply(docs);
+      else docs_list_apply([]);
+
       // we can now launch the backups
-      process_launch();
+      if (start_process) process_launch();
     })
     .catch((error) => {
       // we show the translated error msg
@@ -361,11 +379,11 @@ async function start_API() {
       // and we update the tabs and select
       docs_list_apply([]);
       // we retry in 1 minute (maybe internet is back ;))
-      datas.pidt = setTimeout(start_API, 60000);
+      datas.pidt = setTimeout(start_API, 60000, start_process);
     });
 }
 
-function doc_cb_changed(event: Event) {
+function doc_cb_changed() {
   let sel:HTMLSelectElement | null = document.querySelector("#d_sel");
   if (sel && sel.selectedIndex > 0) {
     let o = sel.options[sel.selectedIndex];
@@ -382,19 +400,22 @@ function UI_tab_select_dom(event: MouseEvent) {
   if (event.currentTarget) UI_tab_select(<HTMLElement>event.currentTarget, true);
 }
 
-async function UI_tab_select(el: HTMLElement, save: boolean) {
+async function UI_tab_select(el: HTMLElement | null, save: boolean) {
   let cur = -1; // to be sure that no invalid selection is done
   // cycle througth all tabs in order to select the right one and deselect the others
-  const els = document.querySelectorAll<HTMLElement>(".tab");
-  for (let i = 0; i < els.length; i++) {
-    const e = els[i];
-    if (e == el) {
-      e.style.backgroundColor = "#5f5f5f";
-      cur = i;
-    } else {
-      e.style.backgroundColor = "#252525";
+  if (el) {
+    const els = document.querySelectorAll<HTMLElement>(".tab");
+    for (let i = 0; i < els.length; i++) {
+      const e = els[i];
+      if (e == el) {
+        e.style.backgroundColor = "#5f5f5f";
+        cur = i;
+      } else {
+        e.style.backgroundColor = "#252525";
+      }
     }
   }
+
 
   // if we have reclicked on the current tab, do nothing
   if (_get_input("#d_index", "-1") == cur.toString()) return;
@@ -632,14 +653,37 @@ function UI_document_test_change() {
 }
 
 async function config_global_save() {
-  // first, we stop all the process if started
-  let r = datas.run;
-  if (r) process_stop_all();
+  // we retrieve the global values
+  let server = _get_input("#g_server");
+  if (server.slice(-1) == "/") {
+    server = server.slice(0,-1);
+    _set_input("#g_server", server);
+  }
+  let api = _get_input("#g_api");
+  let autostart = (document.querySelector("#g_autostart")as HTMLInputElement).checked;
 
-  datas.server = _get_input("#g_server");
-  if (datas.server.slice(-1) == "/") datas.server = datas.server.slice(0,-1);
-  datas.api = _get_input("#g_api");
-  datas.autostart = (document.querySelector("#g_autostart")as HTMLInputElement).checked;
+  // if nothing has changed, just exit
+  if(datas.server == server && datas.api == api && datas.autostart == autostart) return;
+
+  // update autostart data
+  if (datas.autostart != autostart) {
+    datas.autostart = autostart;
+    await Autostart_check();
+  }
+
+  // We stop all the process if started (only if server or api has changed)
+  if(datas.server != server || datas.api != api) {
+    // stop the process if it has started
+    let r = datas.run;
+    if (r) process_stop_all();
+
+    // update the main class values
+    datas.server = server;
+    datas.api = api;
+
+    // if it was started previously, restart the process
+    start_API(r);
+  }
 
   // save the value to the config file
   await datas_save();
@@ -647,15 +691,7 @@ async function config_global_save() {
   // notif
   UI_notif(t("notif.saved"))
 
-  // reload the datas
-  await config_load_datas();
   UI_btn_set_active("g_save", false);
-
-  // if it was started previously, restart the process
-  if (r) {
-    clearTimeout(datas.pidt);
-    start_API();
-  }
 }
 
 function UI_notif(txt: string) {
@@ -802,7 +838,7 @@ async function backup_doc(doc: _doc, tpe: string, retry: boolean, notif: boolean
   const dt = new Date();
   log += dt.toLocaleString();
   invoke("grist_backup", { server: datas.server, api: datas.api, docid: doc.id, docname: doc.name, dir: dir, btype: tpe})
-    .then(async (txt) => {
+    .then(async (_) => {
       // successfull backup
       UI_notif(t("notif.saved_ok"));
       if (notif) await logs_notify_user(t("backup.success_notif", { name: doc.name }), "dialog-information");

@@ -48,6 +48,9 @@ fn load() -> Result<String, String> {
     let mut path = get_config_dir()?;
     // if the config file exists, we read the file and return its content
     path.push("config.txt");
+    if !path.exists() {
+      return Ok("".to_string());
+    }
     return Ok(fs::read_to_string(&path).unwrap_or_default());
 }
 
