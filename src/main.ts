@@ -59,6 +59,11 @@ interface _available_docs {
   [key: string]: string;
 }
 
+class _error {
+  code: number = 0;
+  message: string = "err.unknown";
+}
+
 let datas:_datas = new _datas;
 let availabe_docs: _available_docs = {};
 let tray:TrayIcon;
@@ -151,25 +156,6 @@ function isset (accessor: any) {
   return (typeof accessor !== 'undefined');
 }
 
-// return the message key of a Tauri error returned by the Rust side
-function logs_err_key(error: string) {
-  try {
-    return JSON.parse(error).key || "";
-  } catch {
-    return "";
-  }
-}
-
-// translate a Tauri error returned by the Rust side
-function logs_err_msg(error: string) {
-  try {
-    const e = JSON.parse(error);
-    return t(e.key || "err.unknown", e.params || {});
-  } catch {
-    return (typeof error === "string") ? error : String(error);
-  }
-}
-
 async function logs_notify_user(body: string, icon: string) {
   try {
     await invoke("notify", { summary: "GRIST backup", body: body, icon: icon });
@@ -180,7 +166,7 @@ async function datas_save() {
   const txt = JSON.stringify(datas);
   invoke<string>("save", { datas: txt })
     .catch ((error) =>  {
-    UI_notif(logs_err_msg(error));
+    UI_notif(_parse_error(error).message);
   });
 }
 
@@ -214,7 +200,7 @@ async function config_load_datas() {
   try {
     txt = await invoke("load");
   } catch (error) {
-    if (typeof error === "string") UI_notif(logs_err_msg(error));
+    if (typeof error === "string") UI_notif(_parse_error(error).message);
   }
   if (txt != "") datas = JSON.parse(txt);
   datas_init(); // check datas values and initialize them if needed
@@ -369,7 +355,7 @@ async function start_API() {
     })
     .catch((error) => {
       // we show the translated error msg
-      datas.msg = logs_err_msg(error);
+      datas.msg = _parse_error(error).message;
       datas.statut = STATUT.STOPPED;
       logs_update_general_msg();
       // and we update the tabs and select
@@ -843,9 +829,9 @@ async function backup_doc(doc: _doc, tpe: string, retry: boolean, notif: boolean
       }
     })
     .catch(async (e) => {
-      const msg = logs_err_msg(e);
-      UI_notif(msg);
-      if (notif && logs_err_key(e) != "err.dir") await logs_notify_user(t("backup.error_notif", { name: doc.name, msg: msg }), "dialog-error");
+      const err: _error = _parse_error(e);
+      UI_notif(err.message);
+      if (notif && err.code != 902) await logs_notify_user(t("backup.error_notif", { name: doc.name, msg: err.message }), "dialog-error");
       doc.logs = log + " ERR<br>" + doc.logs;
       logs_show(doc);
       // we handle the retry of the backup if needed
@@ -864,10 +850,10 @@ async function backup_doc(doc: _doc, tpe: string, retry: boolean, notif: boolean
       }
       // we update the error banner
       if (tpe == "/xlsx") {
-        doc.savx_msg = msg;
+        doc.savx_msg = err.message;
         doc.savx_statut = STATUT.ISSUE;
       } else {
-        doc.savg_msg = msg;
+        doc.savg_msg = err.message;
         doc.savg_statut = STATUT.ISSUE;
       }
       logs_update_doc_msg(doc);
@@ -1020,4 +1006,15 @@ function _bool_to_string(val: boolean): string {
 }
 function _string_to_bool(val: string): boolean {
   return (val == "true");
+}
+function _parse_error(json: string): _error {
+  let err: _error = new _error;
+  try {
+    const e = JSON.parse(json);
+    err.code = parseInt(e.error) || 0;
+    err.message = t(e.key || "err.unknown", e.params || {});
+  } catch {
+    // nothing to do
+  }
+  return err;
 }
