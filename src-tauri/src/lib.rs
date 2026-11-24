@@ -382,7 +382,7 @@ async fn last_backup(docname: String, dir: String, tp: String) -> u64 {
             // we restrict the file pattern
             if pp.starts_with(&format!("{}_", clean_filename(&docname))) && pp.ends_with(ext) {
                 if let Ok(mm) = p.metadata() {
-                    if let Ok(tt) = mm.created() {
+                    if let Ok(tt) = mm.modified() {
                         if let Ok(ss) = tt.duration_since(std::time::UNIX_EPOCH) {
                             if ss.as_secs() > last {
                                 last = ss.as_secs();
