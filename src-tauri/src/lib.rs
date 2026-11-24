@@ -47,7 +47,7 @@ fn load() -> Result<String, String> {
     // let's get the config dir
     let mut path = get_config_dir()?;
     // if the config file exists, we read the file and return its content
-    path.push("config.txt");
+    path.push("config.json");
     if !path.exists() {
       return Ok("".to_string());
     }
@@ -58,7 +58,7 @@ fn load() -> Result<String, String> {
 fn save(datas: &str) -> Result<(), String> {
     // let's get the config dir
     let mut path = get_config_dir()?;
-    path.push("config.txt");
+    path.push("config.json");
     fs::write(&path, datas).map_err(|_| {
         get_error(
             901,

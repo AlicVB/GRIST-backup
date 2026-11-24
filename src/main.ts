@@ -204,9 +204,6 @@ async function lang_change() {
 }
 
 async function config_load_datas(): Promise<boolean> {
-  // we stop all the backups if any
-  //process_stop_all();
-
   // in any cases, we initialize the datas
   datas = new _datas;
 
@@ -354,6 +351,24 @@ function docs_list_apply(docs: any) {
 }
 
 async function start_API(start_process: boolean) {
+  // if the server is not set or the api key empty, no need to go further
+  if (!datas.server.startsWith("http://") && !datas.server.startsWith("https://")) {
+    datas.msg = t("err.server_invalid");
+    datas.statut = STATUT.STOPPED;
+    logs_update_general_msg();
+    // and we update the tabs and select
+    docs_list_apply([]);
+    return;
+  }
+  if (datas.api.length < 4) {
+    datas.msg = t("err.api_invalid");
+    datas.statut = STATUT.STOPPED;
+    logs_update_general_msg();
+    // and we update the tabs and select
+    docs_list_apply([]);
+    return;
+  }
+
   // we load the list of available documents via the GRIST API
   if (datas.pidt > 0) {
     clearTimeout(datas.pidt);
