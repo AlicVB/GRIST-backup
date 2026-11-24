@@ -234,7 +234,7 @@ async function config_load_datas(): Promise<boolean> {
   if (j.server && typeof j.server === "string") datas.server = j.server;
   if (datas.server.slice(-1) == "/") datas.server = datas.server.slice(0,-1); // avoid final slash in server url
   if (j.api && typeof j.api === "string") datas.api = j.api;
-  if (j.autostart && typeof j.autostart === "string") datas.autostart = _string_to_bool(j.autostart);
+  if (j.autostart && typeof j.autostart === "boolean") datas.autostart = j.autostart;
   if (j.lang && typeof j.lang === "string" && LANGS.includes(j.lang)) datas.lang = j.lang;
 
   if (j.docs && Array.isArray(j.docs)) {
@@ -245,8 +245,8 @@ async function config_load_datas(): Promise<boolean> {
         let doc = new _doc;
         doc.id = d.id;
         doc.name = d.name;
-        if (d.savg && typeof d.savg === "string") doc.savg = _string_to_bool(d.savg);
-        if (d.savx && typeof d.savx === "string") doc.savx = _string_to_bool(d.savx);
+        if (d.savg && typeof d.savg === "boolean") doc.savg = d.savg;
+        if (d.savx && typeof d.savx === "boolean") doc.savx = d.savx;
         if (d.savg_dir && typeof d.savg_dir === "string") doc.savg_dir = d.savg_dir;
         if (d.savx_dir && typeof d.savx_dir === "string") doc.savx_dir = d.savx_dir;
         if (d.savg_freq && !isNaN(d.savg_freq)) doc.savg_freq = Math.max(parseInt(d.savg_freq), 60);
@@ -263,7 +263,7 @@ function UI_init() {
   // set the global values
   _set_input("#g_server", datas.server);
   _set_input("#g_api", datas.api);
-  _set_input("#g_autostart", _bool_to_string(datas.autostart));
+  (document.querySelector("#g_autostart")as HTMLInputElement).checked = datas.autostart;
 
   // remove all the actual tabs if any
   let els = document.querySelectorAll(".tab");
@@ -1035,13 +1035,6 @@ function _set_input(id:string, val:string):boolean {
     return true;
   }
   return false;
-}
-function _bool_to_string(val: boolean): string {
-  if (val) return "true";
-  else return "false";
-}
-function _string_to_bool(val: string): boolean {
-  return (val == "true");
 }
 function _parse_error(json: string): _error {
   let err: _error = new _error;
