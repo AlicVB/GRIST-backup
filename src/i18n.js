@@ -77,7 +77,9 @@ const translations = {
     "err.config_write": "Impossible d'écrire le fichier de configuration {path}",
     "err.conficontent": "Impossible de lire le fichier de configuration",
     "err.server_invalid": "Le nom du serveur n'est pas valide",
-    "err.api_invalid": "La clef d'API n'est pas valide"
+    "err.api_invalid": "La clef d'API n'est pas valide",
+    "doclist.userdefined": "-- ID personnalisé --",
+    "id.userdefined": "Indiquez l'ID du document"
   },
   en: {
     "app.title": "GRIST backup",
@@ -153,7 +155,9 @@ const translations = {
     "err.config_write": "Cannot write the configuration file {path}",
     "err.conficontent": "Cannot read the configuration file",
     "err.server_invalid": "Invalid server name",
-    "err.api_invalid": "Invalid API key"
+    "err.api_invalid": "Invalid API key",
+    "doclist.userdefined": "-- specific ID --",
+    "id.userdefined": "Indicate the ID of the document"
   },
 };
 

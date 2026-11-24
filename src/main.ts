@@ -289,27 +289,7 @@ function UI_init() {
 function docs_list_apply(docs: any) {
   // we check each registered doc to see if they are still in the list otherwise we mark them as problematic
   // we don't remove them to handle gracefully error in API fetching
-  for (let i=datas.docs.length-1; i>=0; i--) {
-    let id = datas.docs[i].id;
-    let ok = false;
-    for (let j=0; j< docs.length; j++) {
-      if (docs[j].id && docs[j].id == id) {
-        ok = true;
-        break;
-      }
-    }
-    if (!ok) {
-      datas.docs[i].savg_msg = t("doc.unreachable");
-      datas.docs[i].savx_msg = "";
-      datas.docs[i].savg_statut = STATUT.STOPPED;
-      datas.docs[i].savx_statut = STATUT.STOPPED;
-      logs_update_doc_msg(datas.docs[i]);
-    } else {
-      if (datas.docs[i].savg_statut == STATUT.STOPPED) datas.docs[i].savg_statut = STATUT.OK;
-      if (datas.docs[i].savx_statut == STATUT.STOPPED) datas.docs[i].savx_statut = STATUT.OK;
-      logs_update_doc_msg(datas.docs[i]);
-    }
-  }
+
 
   // reset the combobox
   let sel:HTMLSelectElement | null = document.querySelector("#d_sel");
@@ -326,6 +306,29 @@ function docs_list_apply(docs: any) {
     sel.add(o);
     // we select this option by default
     sel.selectedIndex = 0;
+  }
+
+  // we add all the userdefined options
+  for (let i=datas.docs.length-1; i>=0; i--) {
+    let id = datas.docs[i].id;
+    if (id != "") {
+      let ok = false;
+      for (let j=0; j< docs.length; j++) {
+        if (docs[j].id && docs[j].id == id) {
+          ok = true;
+          break;
+        }
+      }
+      if (!ok) {
+        availabe_docs["-- " + id + " --"] = id;
+        if (sel) {
+          let o = document.createElement("option");
+          o.value = id;
+          o.text = "-- " + id + " --";
+          sel.add(o);
+        }
+      }
+    }
   }
 
   // update the list of all available docs and the combobox
@@ -347,7 +350,16 @@ function docs_list_apply(docs: any) {
     }
   }
 
-  if (sel) sel.addEventListener("change", doc_cb_changed);
+  if (sel) {
+    // we add an "user-defined" option
+    let o = document.createElement("option");
+    o.value = "?";
+    o.text = t("doclist.userdefined");
+    sel.add(o);
+
+    // and we put back the event handler
+    sel.addEventListener("change", doc_cb_changed);
+  }
 }
 
 async function start_API(start_process: boolean) {
@@ -402,8 +414,29 @@ function doc_cb_changed() {
   let sel:HTMLSelectElement | null = document.querySelector("#d_sel");
   if (sel && sel.selectedIndex > 0) {
     let o = sel.options[sel.selectedIndex];
-    _set_input("#d_id", o.value);
-    _set_input("#d_name", availabe_docs[o.value]);
+    if (o.value == "?") {
+      // we handle the case of an userdefined id
+      let nid = window.prompt(t("id.userdefined"));
+      if (nid && nid.length>4) {
+        // we add the id in the doc list
+        availabe_docs["-- " + nid + " --"] = nid;
+        // we add an entry into the select options
+        let o = document.createElement("option");
+        o.value = nid;
+        o.text = "-- " + nid + " --";
+        sel.add(o, sel.options[1]);
+        // we select this item
+        sel.selectedIndex = 1;
+        doc_cb_changed();
+        return;
+      } else {
+        sel.selectedIndex = 0;
+      }
+    } else {
+      _set_input("#d_id", o.value);
+      _set_input("#d_name", availabe_docs[o.value]);
+    }
+
   } else {
     _set_input("#d_id", "");
     _set_input("#d_name", "");
