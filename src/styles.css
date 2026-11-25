@@ -52,9 +52,8 @@ h3 {
   column-gap: 2vw;
 }
 
-select {
-  appearance: none;
-}
+
+
 input,
 button,
 select,
@@ -70,6 +69,19 @@ option {
   transition: border-color 0.25s;
   box-shadow: 0 2px 2px rgba(0, 0, 0, 0.2);
 }
+
+select {
+  appearance: none;
+  box-sizing: border-box;
+  background-image: url('assets/triangle.svg');
+  background-size: 0.8em 0.8em;
+  background-position: calc(100% - 0.2em) center;
+  background-repeat: no-repeat;
+  padding-right: 20px;
+  text-overflow: ellipsis;
+  overflow: hidden;
+}
+
 input:read-only,
 button:disabled,
 select:disabled {
@@ -78,6 +90,10 @@ select:disabled {
 }
 .large_input {
   width: 20em;
+}
+#d_savg_dir,
+#d_savx_dir {
+  width: 25em;
 }
 button {
   cursor: pointer;
@@ -123,6 +139,10 @@ select {
   margin-right: 5px;
   padding: 5px 10px;
   cursor: pointer;
+  max-width: 12vw;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 #tabs div.tab_error {

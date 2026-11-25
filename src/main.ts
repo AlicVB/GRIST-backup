@@ -273,6 +273,7 @@ function UI_init() {
     const doc = datas.docs[i];
     const tab = document.createElement("div");
     tab.textContent = doc.name;
+    tab.title = doc.name + "\nid = " + doc.id;
     tab.className = "tab";
     tab.addEventListener("click", UI_tab_select_dom);
     e_add?.parentNode?.insertBefore(tab, e_add);
@@ -657,6 +658,7 @@ async function config_doc_save() {
   // refresh the tab name
   const els = document.querySelectorAll(".tab");
   els[i].textContent = doc.name;
+  (els[i] as HTMLElement).title = doc.name + "\nid = " + doc.id;
 
   // save the value to the config file
   await datas_save();
